@@ -1,8 +1,12 @@
 # data_transfer.py
 import importlib.util
-import os
 from typing import Any, Dict, List, Tuple
 from data_sources import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
+
+# Импортируем функции форматирования
+from data_sources.sql_source import standard_formatting as sql_formatting
+from data_sources.mysql_source import standard_formatting as mysql_formatting
+from data_sources.csv_source import standard_formatting as csv_formatting
 
 
 # Основной класс переноса данных
@@ -60,53 +64,31 @@ class DataTransfer:
             destination.disconnect()
 
     def format_data(self):
-        # Приведение данных к общему формату
-        source_format = self.config["formatting"].get("source_format", {})
-        dest_format = self.config["formatting"].get("destination_format", {})
+        # Приведение данных к общему формату с использованием стандартных функций
+        source_type = self.config["source"]["type"]
+        dest_type = self.config["destination"]["type"]
 
         # Форматирование исходных данных
-        self.formatted_source = []
-        for row in self.source_data:
-            formatted_row = {}
-            for key, value in row.items():
-                # Применяем форматирование если оно задано
-                if key in source_format:
-                    format_func = source_format[key]
-                    formatted_row[format_func["target_column"]] = self.apply_format(value, format_func)
-                else:
-                    formatted_row[key] = value
-            self.formatted_source.append(formatted_row)
+        if source_type == "sql":
+            self.formatted_source = sql_formatting(self.source_data)
+        elif source_type == "mysql":
+            self.formatted_source = mysql_formatting(self.source_data)
+        elif source_type == "csv":
+            self.formatted_source = csv_formatting(self.source_data)
+        else:
+            # Если форматирование не определено, просто копируем
+            self.formatted_source = [dict(row) for row in self.source_data]
 
         # Форматирование данных приемника
-        self.formatted_destination = []
-        for row in self.destination_data:
-            formatted_row = {}
-            for key, value in row.items():
-                if key in dest_format:
-                    format_func = dest_format[key]
-                    formatted_row[format_func["target_column"]] = self.apply_format(value, format_func)
-                else:
-                    formatted_row[key] = value
-            self.formatted_destination.append(formatted_row)
-
-    def apply_format(self, value: Any, format_spec: Dict[str, Any]) -> Any:
-        # Применение форматирования к значению
-        if "type" in format_spec:
-            if format_spec["type"] == "int":
-                try:
-                    return int(value)
-                except (ValueError, TypeError):
-                    return 0
-            elif format_spec["type"] == "str":
-                return str(value)
-            elif format_spec["type"] == "float":
-                try:
-                    return float(value)
-                except (ValueError, TypeError):
-                    return 0.0
-
-        # Добавляем другие форматы по необходимости
-        return value
+        if dest_type == "sql":
+            self.formatted_destination = sql_formatting(self.destination_data)
+        elif dest_type == "mysql":
+            self.formatted_destination = mysql_formatting(self.destination_data)
+        elif dest_type == "csv":
+            self.formatted_destination = csv_formatting(self.destination_data)
+        else:
+            # Если форматирование не определено, просто копируем
+            self.formatted_destination = [dict(row) for row in self.destination_data]
 
     def transform_data(self):
         # Модификация данных после выборки

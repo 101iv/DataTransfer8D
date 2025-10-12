@@ -23,10 +23,6 @@ class ConfigManager:
                 "table": "",
                 "columns": []
             },
-            "formatting": {
-                "source_format": {},
-                "destination_format": {}
-            },
             "transformation": {
                 "source_path": "",
                 "destination_path": ""

@@ -4,7 +4,7 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 import json
 from config_manager import ConfigManager
 from data_transfer import DataTransfer
-from data_sources import SQLDataSource
+from data_sources import SQLDataSource, MySqlDataSource
 
 
 # GUI приложение
@@ -25,6 +25,16 @@ class DataTransferApp:
         self.notebook.add(self.config_frame, text="Configuration")
         self.setup_config_tab()
 
+        # Вкладка схемы источника
+        self.source_schema_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.source_schema_frame, text="Source Schema")
+        self.setup_source_schema_tab()
+
+        # Вкладка схемы приемника
+        self.dest_schema_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.dest_schema_frame, text="Destination Schema")
+        self.setup_dest_schema_tab()
+
         # Вкладка выполнения
         self.execution_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.execution_frame, text="Execution")
@@ -43,7 +53,6 @@ class DataTransferApp:
         ttk.Button(btn_frame, text="Load Config", command=self.load_config).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_frame, text="Save Config", command=self.save_config).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_frame, text="New Config", command=self.new_config).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Load Schema", command=self.load_schema).pack(side=tk.RIGHT, padx=2)
 
         # Панель для редактирования конфигурации
         self.config_text = scrolledtext.ScrolledText(self.config_frame, wrap=tk.WORD)
@@ -51,6 +60,48 @@ class DataTransferApp:
 
         # Загружаем пример конфигурации
         self.new_config()
+
+    def setup_source_schema_tab(self):
+        # Кнопка загрузки схемы источника
+        load_source_btn = ttk.Button(self.source_schema_frame, text="Load Source Schema",
+                                     command=self.load_source_schema)
+        load_source_btn.pack(side=tk.TOP, pady=5)
+
+        # Дерево для отображения схемы источника
+        self.source_schema_tree = ttk.Treeview(self.source_schema_frame)
+        self.source_schema_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Определяем колонки
+        self.source_schema_tree["columns"] = ("Type", "Details")
+        self.source_schema_tree.column("#0", width=150, minwidth=100)
+        self.source_schema_tree.column("Type", width=100, minwidth=80)
+        self.source_schema_tree.column("Details", width=300, minwidth=150)
+
+        # Заголовки колонок
+        self.source_schema_tree.heading("#0", text="Name")
+        self.source_schema_tree.heading("Type", text="Type")
+        self.source_schema_tree.heading("Details", text="Details")
+
+    def setup_dest_schema_tab(self):
+        # Кнопка загрузки схемы приемника
+        load_dest_btn = ttk.Button(self.dest_schema_frame, text="Load Destination Schema",
+                                   command=self.load_dest_schema)
+        load_dest_btn.pack(side=tk.TOP, pady=5)
+
+        # Дерево для отображения схемы приемника
+        self.dest_schema_tree = ttk.Treeview(self.dest_schema_frame)
+        self.dest_schema_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Определяем колонки
+        self.dest_schema_tree["columns"] = ("Type", "Details")
+        self.dest_schema_tree.column("#0", width=150, minwidth=100)
+        self.dest_schema_tree.column("Type", width=100, minwidth=80)
+        self.dest_schema_tree.column("Details", width=300, minwidth=150)
+
+        # Заголовки колонок
+        self.dest_schema_tree.heading("#0", text="Name")
+        self.dest_schema_tree.heading("Type", text="Type")
+        self.dest_schema_tree.heading("Details", text="Details")
 
     def setup_execution_tab(self):
         # Кнопки управления выполнением
@@ -140,10 +191,6 @@ class DataTransferApp:
                 "table": "destination_table",
                 "columns": ["id", "name", "value"]
             },
-            "formatting": {
-                "source_format": {},
-                "destination_format": {}
-            },
             "transformation": {
                 "source_path": "",
                 "destination_path": ""
@@ -156,7 +203,7 @@ class DataTransferApp:
         self.config_text.delete(1.0, tk.END)
         self.config_text.insert(1.0, json.dumps(default_config, indent=2))
 
-    def load_schema(self):
+    def load_source_schema(self):
         try:
             config_content = self.config_text.get(1.0, tk.END)
             config = json.loads(config_content)
@@ -164,13 +211,19 @@ class DataTransferApp:
             messagebox.showerror("Error", "Invalid JSON in configuration editor")
             return
 
-        source_type = config.get("source", {}).get("type", "")
-        if source_type != "sql":
+        source_config = config.get("source", {})
+        source_type = source_config.get("type", "")
+        if source_type not in ["sql", "mysql"]:
             messagebox.showwarning("Warning", "Schema loading is only supported for SQL sources")
             return
 
-        connection_params = config.get("source", {}).get("connection_params", {})
-        source = SQLDataSource(connection_params)
+        connection_params = source_config.get("connection_params", {})
+
+        # Создаем экземпляр соответствующего источника данных
+        if source_type == "mysql":
+            source = MySqlDataSource(connection_params)
+        else:  # sql
+            source = SQLDataSource(connection_params)
 
         try:
             source.connect()
@@ -182,9 +235,83 @@ class DataTransferApp:
             self.config_text.delete(1.0, tk.END)
             self.config_text.insert(1.0, json.dumps(config, indent=2))
 
-            self.log_message("Schema loaded successfully")
+            # Отображаем схему во вкладке Source Schema
+            self.display_schema(self.source_schema_tree, schema)
+
+            self.log_message("Source schema loaded successfully")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load schema: {str(e)}")
+            messagebox.showerror("Error", f"Failed to load source schema: {str(e)}")
+
+    def load_dest_schema(self):
+        try:
+            config_content = self.config_text.get(1.0, tk.END)
+            config = json.loads(config_content)
+        except json.JSONDecodeError:
+            messagebox.showerror("Error", "Invalid JSON in configuration editor")
+            return
+
+        dest_config = config.get("destination", {})
+        dest_type = dest_config.get("type", "")
+        if dest_type not in ["sql", "mysql"]:
+            messagebox.showwarning("Warning", "Schema loading is only supported for SQL destinations")
+            return
+
+        connection_params = dest_config.get("connection_params", {})
+
+        # Создаем экземпляр соответствующего источника данных
+        if dest_type == "mysql":
+            destination = MySqlDataSource(connection_params)
+        else:  # sql
+            destination = SQLDataSource(connection_params)
+
+        try:
+            destination.connect()
+            schema = destination.get_schema()
+            destination.disconnect()
+
+            # Обновляем конфигурацию с новой схемой
+            config["destination"]["schema"] = schema
+            self.config_text.delete(1.0, tk.END)
+            self.config_text.insert(1.0, json.dumps(config, indent=2))
+
+            # Отображаем схему во вкладке Destination Schema
+            self.display_schema(self.dest_schema_tree, schema)
+
+            self.log_message("Destination schema loaded successfully")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load destination schema: {str(e)}")
+
+    def display_schema(self, tree_widget, schema):
+        # Очищаем дерево
+        for item in tree_widget.get_children():
+            tree_widget.delete(item)
+
+        # Заполняем дерево схемой
+        for table_name, columns in schema.items():
+            # Добавляем таблицу как родительский элемент
+            table_id = tree_widget.insert("", "end", text=table_name, values=("Table", f"{len(columns)} columns"))
+
+            # Добавляем колонки как дочерние элементы
+            for col_info in columns:
+                col_name = col_info["name"]
+                col_type = col_info["type"]
+                extra_info = []
+
+                if col_info.get("not_null"):
+                    extra_info.append("NOT NULL")
+                if col_info.get("primary_key"):
+                    extra_info.append("PK")
+                if col_info.get("default") is not None:
+                    extra_info.append(f"DEFAULT: {col_info['default']}")
+
+                extra_str = ", ".join(extra_info) if extra_info else ""
+
+                tree_widget.insert(
+                    table_id,
+                    "end",
+                    text=col_name,
+                    values=("Column", f"{col_type} {extra_str}".strip())
+                )
 
     def run_transfer(self):
         try:

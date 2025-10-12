@@ -1,32 +1,66 @@
 {
   "source": {
-    "type": "sql",
+    "type": "mysql",
     "connection_params": {
-      "path": "source.db"
+      "host": "46.254.20.38",
+      "port": 3306,
+      "user": "p567520_oc3rus",
+      "password": "bY2mX6rE7q",
+      "database": "p567520_oc3rus",
+      "charset": "utf8mb4"
     },
-    "query": "SELECT * FROM source_table",
+    "query": "SELECT * FROM oc_adress",
     "columns": [
-      "id",
-      "name",
-      "value"
+      "adress_id",
+      "customer_id"
     ],
     "filters": {}
   },
   "destination": {
-    "type": "sql",
+    "type": "mysql",
     "connection_params": {
-      "path": "destination.db"
+      "host": "46.254.20.38",
+      "port": 3306,
+      "user": "p567520_ttt",
+      "password": "JbQ-a2U-Awg-NVM",
+      "database": "p567520_ttt",
+      "charset": "utf8mb4"
     },
-    "table": "destination_table",
+    "table": "oc_adress",
     "columns": [
-      "id",
-      "name",
-      "value"
+      "adress_id",
+      "customer_id"
     ]
   },
   "formatting": {
-    "source_format": {},
-    "destination_format": {}
+    "source_format": {
+      "id": {
+        "target_column": "adress_id",
+        "type": "int"
+      },
+      "name": {
+        "target_column": "customer_id",
+        "type": "str"
+      },
+      "value": {
+        "target_column": "value",
+        "type": "float"
+      }
+    },
+    "destination_format": {
+      "id": {
+        "target_column": "id",
+        "type": "int"
+      },
+      "name": {
+        "target_column": "name",
+        "type": "str"
+      },
+      "value": {
+        "target_column": "value",
+        "type": "float"
+      }
+    }
   },
   "transformation": {
     "source_path": "",
