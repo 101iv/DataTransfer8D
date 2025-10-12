@@ -1,0 +1,40 @@
+{
+  "source": {
+    "type": "sql",
+    "connection_params": {
+      "path": "source.db"
+    },
+    "query": "SELECT * FROM source_table",
+    "columns": [
+      "id",
+      "name",
+      "value"
+    ],
+    "filters": {}
+  },
+  "destination": {
+    "type": "sql",
+    "connection_params": {
+      "path": "destination.db"
+    },
+    "table": "destination_table",
+    "columns": [
+      "id",
+      "name",
+      "value"
+    ]
+  },
+  "formatting": {
+    "source_format": {},
+    "destination_format": {}
+  },
+  "transformation": {
+    "source_path": "",
+    "destination_path": ""
+  },
+  "comparison": {
+    "key_fields": [
+      "id"
+    ]
+  }
+}
