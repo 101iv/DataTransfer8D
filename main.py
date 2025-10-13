@@ -6,6 +6,7 @@ from config_manager import ConfigManager
 from data_transfer import DataTransfer
 from data_sources import SQLDataSource, MySqlDataSource
 
+#pip install pandas==2.0.3 - посл версия для py32bit
 
 # GUI приложение
 class DataTransferApp:
@@ -357,8 +358,8 @@ class DataTransferApp:
             self.result_text.insert(tk.END, f"- {len(transfer.to_delete)} records deleted\n")
 
         except Exception as e:
-            self.log_message(f"Error during transfer: {str(e)}")
-            messagebox.showerror("Error", f"Transfer failed: {str(e)}")
+            self.log_message(f"Error during transfer: {e}")
+            messagebox.showerror("Error", f"Transfer failed: {e}")
 
     def stop_transfer(self):
         self.log_message("Transfer stopped by user")
