@@ -12,68 +12,53 @@ class CSVDataSource(DataSource):
         self.delimiter = connection_params.get("delimiter", ",")
         self.newline = connection_params.get("newline", '') # Для Windows совместимости
         # --- Новое: внутреннее состояние данных ---
-        self._current_data = None # Хранит текущее состояние данных в памяти
+        self._current_data = None # Хранит текущее состояние данных в памяти, None если не загружено
         # ------------------------------------------
 
     def connect(self):
-        # Загружаем данные при подключении (или обновляем, если файл изменился)
-        # Или просто читаем при первом вызове fetch_data
-        # Для простоты, данные загружаются при первом fetch_data
-        # и кэшируются. Последующие fetch_data возвращают кэш.
-        # Изменения (insert, update, delete) изменяют этот кэш.
-        # disconnect не влияет на кэш.
-        # reconnect (в смысле перечитывания файла) может обновить кэш.
-        pass # Подключение для CSV - это подготовка, данные читаются при fetch_data
+        # При connect() загружаем данные в кэш, если файл существует
+        # Если файл не существует, кэш остаётся None до первого изменения
+        if os.path.exists(self.file_path):
+            with open(self.file_path, newline=self.newline, encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile, delimiter=self.delimiter)
+                self._current_data = [dict(row) for row in reader]
+        else:
+            # Если файл не существует, устанавливаем кэш в пустой список
+            # Это позволит корректно обрабатывать вставки в новый файл
+            self._current_data = []
+        # print(f"DEBUG: CSV loaded data, cache: {self._current_data}") # Отладка
 
     def fetch_data(self, query: str = "", params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """
         query: может быть пустой строкой или путем к файлу (если не задан в __init__)
         params: фильтры (опционально)
         """
-        path_to_use = query if query else self.file_path
-        if not os.path.exists(path_to_use):
-            # Если файл не существует, возвращаем пустой список и устанавливаем кэш
-            print(f"Warning: CSV file {path_to_use} does not exist. Returning empty list.")
-            self._current_data = []
-            return []
-
-        # Если кэш уже есть, возвращаем его (предполагаем, что никто не менял файл извне)
-        if self._current_data is not None:
-            # Применяем фильтрацию, если она была передана
-            if params and "filter" in params:
-                filter_func = params["filter"]
-                return [row for row in self._current_data if filter_func(row)]
-            return self._current_data
-
-        # Если кэша нет, читаем файл и создаем кэш
-        with open(path_to_use, newline=self.newline, encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile, delimiter=self.delimiter)
-            rows = [dict(row) for row in reader]
-
-            # Применяем фильтрацию если задана
-            if params and "filter" in params:
-                filter_func = params["filter"]
-                rows = [row for row in rows if filter_func(row)]
-
-        self._current_data = rows # Кэшируем данные
+        # Возвращаем текущее состояние кэша
+        if self._current_data is None:
+             # Если кэш не загружен (не подключались или файл был пуст/не существовал изначально),
+             # и никто не вызвал connect, возвращаем пустой список.
+             # Но connect должен был быть вызван перед fetch_data.
+             # print("DEBUG: fetch_data called but cache is None. Returning empty list.")
+             return []
+        # Применяем фильтрацию, если она была передана
+        if params and "filter" in params:
+            filter_func = params["filter"]
+            return [row for row in self._current_data if filter_func(row)]
         return self._current_data
 
     def get_schema(self) -> Dict[str, Any]:
-        path_to_use = self.file_path
-        if not os.path.exists(path_to_use):
-            return {"columns": []}
-
-        with open(path_to_use, newline=self.newline, encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile, delimiter=self.delimiter)
-            fieldnames = reader.fieldnames
-            # Простая схема - только имена колонок
-            return {"columns": [{"name": name, "type": "TEXT"} for name in fieldnames]}
-
-    def disconnect(self):
-        # Сохраняем кэш в файл при отключении, если были изменения?
-        # Или сохранение происходит только при выполнении изменений?
-        # Пока не сохраняем автоматически.
-        pass
+        # Используем кэш, если он есть, иначе читаем файл напрямую
+        if self._current_data and len(self._current_data) > 0:
+            fieldnames = self._current_data[0].keys()
+        else:
+            # Если кэш пуст, читаем заголовки из файла, если он существует
+            if os.path.exists(self.file_path):
+                 with open(self.file_path, newline=self.newline, encoding='utf-8') as csvfile:
+                     reader = csv.DictReader(csvfile, delimiter=self.delimiter)
+                     fieldnames = reader.fieldnames
+            else:
+                fieldnames = []
+        return {"columns": [{"name": name, "type": "TEXT"} for name in fieldnames]}
 
     # --- Вспомогательный метод для записи данных в файл ---
     def _write_data(self, data: List[Dict[str, Any]], path: str = None):
@@ -81,8 +66,8 @@ class CSVDataSource(DataSource):
         path_to_use = path if path else self.file_path
         if not data:
             # Если данные пустые, создаем файл с заголовками или очищаем его
-            fieldnames = [] # Или используем заголовки из конфига или из кэша, если он есть
-            # Попробуем использовать заголовки из текущего кэша, если он есть
+            # Используем заголовки из кэша, если он был, или оставляем пустым
+            fieldnames = []
             if self._current_data and len(self._current_data) > 0:
                  fieldnames = self._current_data[0].keys()
             with open(path_to_use, 'w', newline=self.newline, encoding='utf-8') as csvfile:
@@ -102,28 +87,27 @@ class CSVDataSource(DataSource):
     # Эти методы теперь работают с self._current_data и обновляют его
     def insert_data(self, data: List[Dict[str, Any]], table_name: str = None):
         """
-        Вставляет новые строки в CSV файл (локальное представление).
+        Добавляет новые строки в локальное представление данных (кэш).
         data: список словарей с данными для вставки
         table_name игнорируется для CSV.
         """
         # Обновляем локальное представление
         if self._current_data is None:
-            # Если кэш не был загружен, предполагаем пустой файл
+            # Если кэш не был загружен при connect, предполагаем пустой файл
             self._current_data = []
         self._current_data.extend(data)
-        # Записываем обновлённое состояние в файл
-        self._write_data(self._current_data)
+        # print(f"DEBUG: Inserted data, cache now: {self._current_data}") # Отладка
 
     def update_data(self, updates: List[Dict[str, Any]], key_fields: List[str], table_name: str = None):
         """
-        Обновляет строки в CSV файле (локальное представление) на основе ключевых полей.
+        Обновляет строки в локальном представлении данных (кэш) на основе ключевых полей.
         updates: список словарей вида {"old": {...}, "new": {...}}
         key_fields: список ключевых полей для поиска
         table_name игнорируется для CSV.
         """
         if self._current_data is None:
             # Если кэш не был загружен, нечего обновлять
-            print("Warning: Attempting to update CSV data, but no initial data was loaded.")
+            print("Warning: Attempting to update CSV data, but no initial data was loaded or cache is empty.")
             return
 
         for update_item in updates:
@@ -137,24 +121,23 @@ class CSVDataSource(DataSource):
                     self._current_data[i] = new_row # Заменяем старую строку на новую
                     break # Предполагаем уникальность по ключу, выходим из поиска
 
-        # Записываем обновлённое состояние в файл
-        self._write_data(self._current_data)
+        # print(f"DEBUG: Updated data, cache now: {self._current_data}") # Отладка
 
     def delete_data(self, deletions: List[Dict[str, Any]], key_fields: List[str], table_name: str = None):
         """
-        Удаляет строки из CSV файла (локальное представление) на основе ключевых полей.
+        Удаляет строки из локального представления данных (кэш) на основе ключевых полей.
         deletions: список строк для удаления (содержит ключевые поля)
         key_fields: список ключевых полей для поиска
         table_name игнорируется для CSV.
         """
         if self._current_data is None:
             # Если кэш не был загружен, нечего удалять
-            print("Warning: Attempting to delete CSV data, but no initial data was loaded.")
+            print("Warning: Attempting to delete CSV data, but no initial data was loaded or cache is empty.")
             return
 
         # Фильтруем существующие данные, исключая строки для удаления
         updated_data = []
-        for row in self._current_data:
+        for row in self._current_data: # Используем self._current_data
             # Проверяем, есть ли текущая строка в списке на удаление
             to_delete = False
             for del_row in deletions:
@@ -167,9 +150,21 @@ class CSVDataSource(DataSource):
 
         # Обновляем локальное представление
         self._current_data = updated_data
-        # Записываем обновлённое состояние в файл
-        self._write_data(self._current_data)
+        # print(f"DEBUG: Deleted data, cache now: {self._current_data}") # Отладка
     # ---------------------------------------------
+
+    def disconnect(self):
+        # Сохраняем кэш в файл при отключении, если кэш не None
+        # (то есть connect() был вызван)
+        if self._current_data is not None:
+            # print(f"DEBUG: Disconnecting, writing cache to file: {self._current_data}") # Отладка
+            self._write_data(self._current_data, self.file_path)
+            # Сбрасываем кэш
+            self._current_data = None
+        # Если self._current_data == None, это означает, что connect() не был вызван
+        # или файл был пуст/не существовал и не было изменений.
+        # В этом случае просто выходим, ничего не записывая (файл либо уже пуст/не существовал,
+        # либо не было изменений для сохранения).
 
 
 def standard_formatting(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
