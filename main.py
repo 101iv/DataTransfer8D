@@ -7,15 +7,16 @@ from config_manager import ConfigManager
 from data_transfer import DataTransfer
 from data_sources import SQLDataSource, MySqlDataSource
 
-# Настройка логирования для main модуля
+# Настройка логирования для main модуля (и всех модулей, использующих logging)
 # Уровень можно установить на DEBUG, если нужно видеть все логи из data_transfer
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # GUI приложение
 class DataTransferApp:
     def __init__(self, root):
-        # Настройка логирования для root logger, чтобы логи из data_transfer также попадали сюда
-        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        # Логирование уже настроено благодаря вызову basicConfig выше
+        self.logger = logging.getLogger(__name__) # Создаем логгер для этого класса
+        self.logger.info("Инициализация DataTransferApp")
         self.root = root
         self.root.title("Data Transfer Tool")
         self.root.geometry("1000x700")
@@ -318,23 +319,21 @@ class DataTransferApp:
                 )
 
     def run_transfer(self):
-        logger = logging.getLogger(__name__) # Получаем логгер для main.py
-        logger.info("--- ЗАПУСК ПЕРЕНОСА ИЗ GUI ---")
+        self.logger.info("--- ЗАПУСК ПЕРЕНОСА ИЗ GUI ---") # Используем self.logger
+        # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s') # Убираем эту строку из run_transfer, так как basicConfig уже вызван
         try:
             config_content = self.config_text.get(1.0, tk.END)
             config = json.loads(config_content)
         except json.JSONDecodeError:
-            logger.error("Ошибка: Неверный JSON в редакторе конфигурации.")
+            self.logger.error("Ошибка: Неверный JSON в редакторе конфигурации.") # Используем self.logger
             messagebox.showerror("Error", "Invalid JSON in configuration editor")
             return
 
         self.log_message("Starting data transfer...")
         self.progress['value'] = 0
         try:
-            logger.info("Создание экземпляра DataTransfer...")
             transfer = DataTransfer(config)
-            logger.info("Вызов метода run()...")
-            transfer.run() # Вызываем основной метод, который теперь содержит все логи
+            transfer.run() # Теперь все логи из data_transfer должны появиться в консоли
 
             # Обновляем счетчики после выполнения
             # (transfer.compare_data() уже вызван внутри transfer.run())
@@ -348,9 +347,9 @@ class DataTransferApp:
             self.result_text.insert(tk.END, f"- {len(transfer.to_insert)} records inserted\n")
             self.result_text.insert(tk.END, f"- {len(transfer.to_update)} records updated\n")
             self.result_text.insert(tk.END, f"- {len(transfer.to_delete)} records deleted\n")
-            logger.info("--- ПЕРЕНОС ЗАВЕРШЕН УСПЕШНО ИЗ GUI ---")
+            self.logger.info("--- ПЕРЕНОС ЗАВЕРШЕН УСПЕШНО ИЗ GUI ---") # Используем self.logger
         except Exception as e:
-            logger.error(f"--- ПЕРЕНОС ЗАВЕРШЕН С ОШИБКОЙ ИЗ GUI: {e} ---")
+            self.logger.error(f"--- ПЕРЕНОС ЗАВЕРШЕН С ОШИБКОЙ ИЗ GUI: {e} ---") # Используем self.logger
             self.log_message(f"Error during transfer: {e}")
             messagebox.showerror("Error", f"Transfer failed: {e}")
 

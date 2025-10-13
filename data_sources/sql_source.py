@@ -48,6 +48,93 @@ class SQLDataSource(DataSource):
 
         return schema
 
+    # --- Новые методы для INSERT, UPDATE, DELETE ---
+    def insert_data(self, data: List[Dict[str, Any]], table_name: str):
+        """
+        Вставляет новые строки в таблицу SQLite.
+        data: список словарей с данными
+        table_name: имя таблицы
+        """
+        if not self.connection:
+            raise Exception("Connection not established")
+
+        if not data:
+            return # Нечего вставлять
+
+        cursor = self.connection.cursor()
+        # Берем поля из первой строки данных
+        first_row = data[0]
+        columns = ", ".join([f"`{k}`" for k in first_row.keys()])
+        placeholders = ", ".join(["?"] * len(first_row))
+        query = f"INSERT INTO `{table_name}` ({columns}) VALUES ({placeholders})"
+
+        for row in data:
+            cursor.execute(query, list(row.values()))
+
+        cursor.close()
+        # Вызов commit() должен происходить в вызывающем коде (data_transfer.py)
+
+    def update_data(self, updates: List[Dict[str, Any]], key_fields: List[str], table_name: str):
+        """
+        Обновляет строки в таблице SQLite на основе ключевых полей.
+        updates: список словарей вида {"old": {...}, "new": {...}}
+        key_fields: список ключевых полей для поиска
+        table_name: имя таблицы
+        """
+        if not self.connection:
+            raise Exception("Connection not established")
+
+        if not updates:
+            return # Нечего обновлять
+
+        cursor = self.connection.cursor()
+        for update_item in updates:
+            new_row = update_item["new"]
+            old_row = update_item["old"]
+
+            # SET часть
+            set_parts = [f"`{k}` = ?" for k in new_row.keys()]
+            set_clause = ", ".join(set_parts)
+            # WHERE часть
+            where_parts = [f"`{k}` = ?" for k in key_fields]
+            where_clause = " AND ".join(where_parts)
+
+            query = f"UPDATE `{table_name}` SET {set_clause} WHERE {where_clause}"
+            # Параметры: сначала значения для SET, затем значения для WHERE
+            params = list(new_row.values()) + [old_row[k] for k in key_fields]
+
+            cursor.execute(query, params)
+
+        cursor.close()
+        # Вызов commit() должен происходить в вызывающем коде (data_transfer.py)
+
+    def delete_data(self, deletions: List[Dict[str, Any]], key_fields: List[str], table_name: str):
+        """
+        Удаляет строки из таблицы SQLite на основе ключевых полей.
+        deletions: список строк для удаления
+        key_fields: список ключевых полей для поиска
+        table_name: имя таблицы
+        """
+        if not self.connection:
+            raise Exception("Connection not established")
+
+        if not deletions:
+            return # Нечего удалять
+
+        cursor = self.connection.cursor()
+        # WHERE часть
+        where_parts = [f"`{k}` = ?" for k in key_fields]
+        where_clause = " AND ".join(where_parts)
+        query = f"DELETE FROM `{table_name}` WHERE {where_clause}"
+
+        for del_row in deletions:
+            params = [del_row[k] for k in key_fields]
+            cursor.execute(query, params)
+
+        cursor.close()
+        # Вызов commit() должен происходить в вызывающем коде (data_transfer.py)
+    # ---------------------------------------------
+
     def disconnect(self):
         if self.connection:
             self.connection.close()

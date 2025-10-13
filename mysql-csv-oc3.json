@@ -18,28 +18,26 @@
     "filters": {}
   },
   "destination": {
-    "source": {
-      "type": "csv",
-      "connection_params": {
-        "path": "oc_product-test.csv",
-        "delimiter": ","
-      },
-      "query": "oc_product-test.csv",
-      "columns": [
-        "product_id",
-        "model",
-        "date_added"
-      ],
-      "filters": {}
+    "type": "csv",
+    "connection_params": {
+      "path": "oc_product-test.csv",
+      "delimiter": ","
     },
-    "transformation": {
-      "source_path": "",
-      "destination_path": ""
-    },
-    "comparison": {
-      "key_fields": [
-        "product_id"
-      ]
-    }
+    "query": "oc_product-test.csv",
+    "columns": [
+      "product_id",
+      "model",
+      "date_added"
+    ],
+    "filters": {}
+  },
+  "transformation": {
+    "source_path": "",
+    "destination_path": ""
+  },
+  "comparison": {
+    "key_fields": [
+      "product_id"
+    ]
   }
 }
