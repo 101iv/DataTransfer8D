@@ -1,17 +1,22 @@
 # data_transfer.py
 import importlib.util
+import logging # Добавляем импорт модуля logging
 from typing import Any, Dict, List, Tuple
 from data_sources import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
+
+# Настройка логирования для этого модуля
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__) # Создаем логгер для этого файла
 
 # Импортируем функции форматирования
 from data_sources.sql_source import standard_formatting as sql_formatting
 from data_sources.mysql_source import standard_formatting as mysql_formatting
 from data_sources.csv_source import standard_formatting as csv_formatting
 
-
 # Основной класс переноса данных
 class DataTransfer:
     def __init__(self, config: Dict[str, Any]):
+        logger.info("Инициализация DataTransfer")
         self.config = config
         self.source_data = []
         self.destination_data = []
@@ -22,6 +27,7 @@ class DataTransfer:
         self.to_delete = []
 
     def get_data_source(self, source_type: str, connection_params: Dict[str, Any]) -> DataSource:
+        logger.debug(f"Получение источника данных типа: {source_type}")
         if source_type == "sql":
             return SQLDataSource(connection_params)
         elif source_type == "mysql":
@@ -32,41 +38,53 @@ class DataTransfer:
             raise ValueError(f"Unsupported source type: {source_type}")
 
     def fetch_data(self):
+        logger.info("Начало загрузки данных")
         # Получаем данные из источника
         source_config = self.config["source"]
         source = self.get_data_source(
             source_config["type"],
             source_config["connection_params"]
         )
-
         try:
+            logger.debug("Подключение к источнику...")
             source.connect()
+            logger.debug("Загрузка данных из источника...")
             self.source_data = source.fetch_data(
                 source_config["query"],
                 source_config.get("filters", {})
             )
+            logger.info(f"Загружено {len(self.source_data)} записей из источника.")
         finally:
+            logger.debug("Отключение от источника...")
             source.disconnect()
 
         # Получаем данные из приемника
         dest_config = self.config["destination"]
+        # Исправление: используем тип и параметры соединения из destination, а не source
         destination = self.get_data_source(
             dest_config["type"],
             dest_config["connection_params"]
         )
-
         try:
+            logger.debug("Подключение к приемнику...")
             destination.connect()
             # В простом случае - получаем все данные из таблицы
+            # Исправление: для CSV или других источников может потребоваться другой подход
             query = f"SELECT * FROM {dest_config['table']}"
+            logger.debug(f"Выполнение запроса к приемнику: {query}")
             self.destination_data = destination.fetch_data(query)
+            logger.info(f"Загружено {len(self.destination_data)} записей из приемника.")
         finally:
+            logger.debug("Отключение от приемника...")
             destination.disconnect()
+        logger.info("Завершена загрузка данных")
 
     def format_data(self):
+        logger.info("Начало форматирования данных")
         # Приведение данных к общему формату с использованием стандартных функций
         source_type = self.config["source"]["type"]
         dest_type = self.config["destination"]["type"]
+        logger.debug(f"Тип источника: {source_type}, Тип приемника: {dest_type}")
 
         # Форматирование исходных данных
         if source_type == "sql":
@@ -78,6 +96,7 @@ class DataTransfer:
         else:
             # Если форматирование не определено, просто копируем
             self.formatted_source = [dict(row) for row in self.source_data]
+        logger.info(f"Форматирование исходных данных завершено. Обработано {len(self.formatted_source)} записей.")
 
         # Форматирование данных приемника
         if dest_type == "sql":
@@ -89,55 +108,84 @@ class DataTransfer:
         else:
             # Если форматирование не определено, просто копируем
             self.formatted_destination = [dict(row) for row in self.destination_data]
+        logger.info(f"Форматирование данных приемника завершено. Обработано {len(self.formatted_destination)} записей.")
+        logger.info("Форматирование данных завершено")
 
     def transform_data(self):
+        logger.info("Начало трансформации данных")
         # Модификация данных после выборки
         transformation_config = self.config["transformation"]
+        logger.debug(f"Конфигурация трансформации: {transformation_config}")
 
         # Трансформация исходных данных
         if transformation_config.get("source_path"):
+            logger.debug(f"Загрузка трансформации для источника из: {transformation_config['source_path']}")
             transform_func = self.load_transform_function(transformation_config["source_path"])
             if transform_func:
+                logger.debug("Функция трансформации источника загружена, применяем...")
                 self.formatted_source = transform_func(self.formatted_source)
+                logger.info(f"Трансформация источника применена. Результат: {len(self.formatted_source)} записей.")
+            else:
+                logger.warning(f"Функция трансформации для источника не найдена в {transformation_config['source_path']}")
 
         # Трансформация данных приемника
         if transformation_config.get("destination_path"):
+            logger.debug(f"Загрузка трансформации для приемника из: {transformation_config['destination_path']}")
             transform_func = self.load_transform_function(transformation_config["destination_path"])
             if transform_func:
+                logger.debug("Функция трансформации приемника загружена, применяем...")
                 self.formatted_destination = transform_func(self.formatted_destination)
+                logger.info(f"Трансформация приемника применена. Результат: {len(self.formatted_destination)} записей.")
+            else:
+                logger.warning(f"Функция трансформации для приемника не найдена в {transformation_config['destination_path']}")
+        logger.info("Трансформация данных завершена")
 
     def load_transform_function(self, file_path: str):
         # Загружаем функцию трансформации из файла
+        logger.debug(f"Попытка загрузки функции трансформации из {file_path}")
+        # Импортируем os для проверки существования файла
+        import os
         if not os.path.exists(file_path):
+            logger.error(f"Файл трансформации не найден: {file_path}")
+            return None
+        try:
+            spec = importlib.util.spec_from_file_location("transform_module", file_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            # Предполагаем, что в файле есть функция transform
+            if hasattr(module, 'transform'):
+                logger.debug(f"Функция 'transform' найдена в {file_path}")
+                return module.transform
+            else:
+                logger.warning(f"Функция 'transform' не найдена в {file_path}")
+                return None
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке трансформации из {file_path}: {e}")
             return None
 
-        spec = importlib.util.spec_from_file_location("transform_module", file_path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-
-        # Предполагаем, что в файле есть функция transform
-        if hasattr(module, 'transform'):
-            return module.transform
-        return None
-
     def compare_data(self):
-        # Сравнение данных
+        logger.info("Начало сравнения данных")
         key_fields = self.config["comparison"]["key_fields"]
+        logger.debug(f"Поля для сравнения (ключи): {key_fields}")
 
         # Создаем словари для быстрого поиска
+        logger.debug("Создание словаря для исходных данных...")
         source_dict = {self.get_key(row, key_fields): row for row in self.formatted_source}
+        logger.debug("Создание словаря для данных приемника...")
         dest_dict = {self.get_key(row, key_fields): row for row in self.formatted_destination}
 
         # Определяем, что нужно вставить
+        logger.debug("Определение записей для вставки...")
         self.to_insert = []
         for key, row in source_dict.items():
             if key not in dest_dict:
                 self.to_insert.append(row)
+        logger.info(f"Найдено {len(self.to_insert)} записей для вставки.")
 
         # Определяем, что нужно обновить или удалить
+        logger.debug("Определение записей для обновления или удаления...")
         self.to_update = []
         self.to_delete = []
-
         for key, dest_row in dest_dict.items():
             if key in source_dict:
                 # Сравниваем содержимое (упрощенно)
@@ -150,16 +198,23 @@ class DataTransfer:
             else:
                 # Удалить из приемника
                 self.to_delete.append(dest_row)
+        logger.info(f"Найдено {len(self.to_update)} записей для обновления.")
+        logger.info(f"Найдено {len(self.to_delete)} записей для удаления.")
+        logger.info("Сравнение данных завершено")
 
     def get_key(self, row: Dict[str, Any], key_fields: List[str]) -> str:
         # Создаем ключ из указанных полей
+        # logger.debug(f"Создание ключа для строки: {row}") # Это может быть много
         key_parts = []
         for field in key_fields:
             key_parts.append(str(row.get(field, "")))
-        return "|".join(key_parts)
+        key_str = "|".join(key_parts)
+        # logger.debug(f"Сгенерированный ключ: {key_str}") # Это может быть много
+        return key_str
 
     def rows_equal(self, row1: Dict[str, Any], row2: Dict[str, Any]) -> bool:
         # Проверяем равенство строк (упрощенно)
+        # logger.debug(f"Сравнение строк: {row1} и {row2}") # Это может быть много
         for key in row1:
             if key not in row2:
                 continue
@@ -173,70 +228,113 @@ class DataTransfer:
         return True
 
     def modify_data(self):
-        # Модификация данных перед вставкой/обновлением/удалением
+        logger.info("Начало модификации данных перед выполнением изменений")
         transformation_config = self.config["transformation"]
+        logger.debug(f"Конфигурация трансформации для модификации: {transformation_config}")
 
         # Трансформация данных для вставки
         if transformation_config.get("destination_path"):
+            logger.debug(f"Загрузка трансформации для модификации данных из: {transformation_config['destination_path']}")
             transform_func = self.load_transform_function(transformation_config["destination_path"])
             if transform_func:
+                logger.debug("Применение трансформации к данным для вставки...")
                 self.to_insert = transform_func(self.to_insert)
+                logger.info(f"Модификация данных для вставки завершена. Результат: {len(self.to_insert)} записей.")
                 # Для обновления нужно трансформировать только "new" часть
+                logger.debug("Применение трансформации к новым данным для обновления...")
                 for update_item in self.to_update:
-                    update_item["new"] = transform_func([update_item["new"]])[0]
+                    # Оборачиваем словарь в список, т.к. функция трансформации ожидает список
+                    transformed_new_row_list = transform_func([update_item["new"]])
+                    if transformed_new_row_list and len(transformed_new_row_list) > 0:
+                         update_item["new"] = transformed_new_row_list[0]
+                logger.info(f"Модификация новых данных для обновления завершена.")
+            else:
+                logger.warning(f"Функция трансформации для модификации не найдена в {transformation_config['destination_path']}")
+        else:
+            logger.debug("Конфигурация трансформации для модификации не указана.")
+        logger.info("Модификация данных завершена")
 
     def execute_changes(self):
-        # Выполняем изменения в приемнике
+        logger.info("Начало выполнения изменений в приемнике")
         dest_config = self.config["destination"]
         destination = self.get_data_source(
             dest_config["type"],
             dest_config["connection_params"]
         )
-
         try:
+            logger.debug("Подключение к приемнику для выполнения изменений...")
             destination.connect()
-
             # Вставляем новые записи
-            for row in self.to_insert:
+            logger.info(f"Вставка {len(self.to_insert)} новых записей...")
+            for i, row in enumerate(self.to_insert):
                 placeholders = ", ".join(["%s" for _ in row])
                 columns = ", ".join([f"`{k}`" for k in row.keys()])
                 query = f"INSERT INTO `{dest_config['table']}` ({columns}) VALUES ({placeholders})"
                 cursor = destination.connection.cursor()
                 cursor.execute(query, list(row.values()))
+                # Логирование прогресса (опционально)
+                if (i + 1) % 100 == 0: # Логировать каждый 100-й insert
+                    logger.debug(f"Вставлено {i+1}/{len(self.to_insert)} записей...")
+            logger.info(f"Вставка завершена. Всего вставлено: {len(self.to_insert)}")
 
             # Обновляем существующие записи
-            for update_item in self.to_update:
+            logger.info(f"Обновление {len(self.to_update)} существующих записей...")
+            for i, update_item in enumerate(self.to_update):
                 # Создаем SET часть запроса
                 set_clause = ", ".join([f"`{k}` = %s" for k in update_item["new"].keys()])
                 where_clause = " AND ".join([f"`{k}` = %s" for k in self.config["comparison"]["key_fields"]])
                 query = f"UPDATE `{dest_config['table']}` SET {set_clause} WHERE {where_clause}"
-
                 # Подготавливаем параметры
                 values = list(update_item["new"].values())
                 for key_field in self.config["comparison"]["key_fields"]:
                     values.append(update_item["old"][key_field])
-
                 cursor = destination.connection.cursor()
                 cursor.execute(query, values)
+                # Логирование прогресса (опционально)
+                if (i + 1) % 100 == 0: # Логировать каждый 100-й update
+                    logger.debug(f"Обновлено {i+1}/{len(self.to_update)} записей...")
+            logger.info(f"Обновление завершено. Всего обновлено: {len(self.to_update)}")
 
             # Удаляем записи
-            for row in self.to_delete:
+            logger.info(f"Удаление {len(self.to_delete)} записей...")
+            for i, row in enumerate(self.to_delete):
                 where_clause = " AND ".join([f"`{k}` = %s" for k in self.config["comparison"]["key_fields"]])
                 query = f"DELETE FROM `{dest_config['table']}` WHERE {where_clause}"
-
                 cursor = destination.connection.cursor()
                 values = [row[key] for key in self.config["comparison"]["key_fields"]]
                 cursor.execute(query, values)
+                # Логирование прогресса (опционально)
+                if (i + 1) % 100 == 0: # Логировать каждый 100-й delete
+                    logger.debug(f"Удалено {i+1}/{len(self.to_delete)} записей...")
+            logger.info(f"Удаление завершено. Всего удалено: {len(self.to_delete)}")
 
+            logger.debug("Фиксация изменений в базе данных...")
             destination.connection.commit()
-
+            logger.info("Все изменения успешно зафиксированы.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении изменений: {e}")
+            # Важно: откатить транзакцию в случае ошибки, если соединение активно
+            if hasattr(destination, 'connection') and destination.connection:
+                try:
+                    destination.connection.rollback()
+                    logger.info("Транзакция откачена из-за ошибки.")
+                except Exception as rollback_e:
+                    logger.error(f"Ошибка при откате транзакции: {rollback_e}")
+            raise # Передаем ошибку выше
         finally:
+            logger.debug("Отключение от приемника после выполнения изменений...")
             destination.disconnect()
 
     def run(self):
-        self.fetch_data()
-        self.format_data()
-        self.transform_data()
-        self.compare_data()
-        self.modify_data()
-        self.execute_changes()
+        logger.info("=== ЗАПУСК ПРОЦЕССА ПЕРЕНОСА ДАННЫХ ===")
+        try:
+            self.fetch_data()
+            self.format_data()
+            self.transform_data()
+            self.compare_data()
+            self.modify_data()
+            self.execute_changes()
+            logger.info("=== ПРОЦЕСС ПЕРЕНОСА ДАННЫХ УСПЕШНО ЗАВЕРШЕН ===")
+        except Exception as e:
+            logger.error(f"=== ПРОЦЕСС ПЕРЕНОСА ДАННЫХ ЗАВЕРШЕН С ОШИБКОЙ: {e} ===")
+            raise # Передаем ошибку выше, чтобы GUI мог её обработать

@@ -2,21 +2,24 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import json
+import logging # Добавляем импорт модуля logging
 from config_manager import ConfigManager
 from data_transfer import DataTransfer
 from data_sources import SQLDataSource, MySqlDataSource
 
-#pip install pandas==2.0.3 - посл версия для py32bit
+# Настройка логирования для main модуля
+# Уровень можно установить на DEBUG, если нужно видеть все логи из data_transfer
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # GUI приложение
 class DataTransferApp:
     def __init__(self, root):
+        # Настройка логирования для root logger, чтобы логи из data_transfer также попадали сюда
+        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         self.root = root
         self.root.title("Data Transfer Tool")
         self.root.geometry("1000x700")
-
         self.config_manager = ConfigManager()
-
         # Создаем вкладки
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -315,51 +318,42 @@ class DataTransferApp:
                 )
 
     def run_transfer(self):
+        logger = logging.getLogger(__name__) # Получаем логгер для main.py
+        logger.info("--- ЗАПУСК ПЕРЕНОСА ИЗ GUI ---")
         try:
             config_content = self.config_text.get(1.0, tk.END)
             config = json.loads(config_content)
         except json.JSONDecodeError:
+            logger.error("Ошибка: Неверный JSON в редакторе конфигурации.")
             messagebox.showerror("Error", "Invalid JSON in configuration editor")
             return
 
         self.log_message("Starting data transfer...")
         self.progress['value'] = 0
-
         try:
+            logger.info("Создание экземпляра DataTransfer...")
             transfer = DataTransfer(config)
-            transfer.fetch_data()
-            self.log_message("Data fetched successfully")
+            logger.info("Вызов метода run()...")
+            transfer.run() # Вызываем основной метод, который теперь содержит все логи
 
-            transfer.format_data()
-            self.log_message("Data formatted successfully")
-
-            transfer.transform_data()
-            self.log_message("Data transformed successfully")
-
-            transfer.compare_data()
-            self.log_message("Data comparison completed")
-
-            # Обновляем счетчики
+            # Обновляем счетчики после выполнения
+            # (transfer.compare_data() уже вызван внутри transfer.run())
             self.insert_count.config(text=str(len(transfer.to_insert)))
             self.update_count.config(text=str(len(transfer.to_update)))
             self.delete_count.config(text=str(len(transfer.to_delete)))
 
-            transfer.modify_data()
-            self.log_message("Data modifications applied")
-
-            transfer.execute_changes()
-            self.log_message("Changes executed successfully")
-
             self.progress['value'] = 100
             self.result_text.delete(1.0, tk.END)
-            self.result_text.insert(1.0, f"Transfer completed:\n")
+            self.result_text.insert(1.0, f"Transfer completed successfully:\n")
             self.result_text.insert(tk.END, f"- {len(transfer.to_insert)} records inserted\n")
             self.result_text.insert(tk.END, f"- {len(transfer.to_update)} records updated\n")
             self.result_text.insert(tk.END, f"- {len(transfer.to_delete)} records deleted\n")
-
+            logger.info("--- ПЕРЕНОС ЗАВЕРШЕН УСПЕШНО ИЗ GUI ---")
         except Exception as e:
+            logger.error(f"--- ПЕРЕНОС ЗАВЕРШЕН С ОШИБКОЙ ИЗ GUI: {e} ---")
             self.log_message(f"Error during transfer: {e}")
             messagebox.showerror("Error", f"Transfer failed: {e}")
+
 
     def stop_transfer(self):
         self.log_message("Transfer stopped by user")
