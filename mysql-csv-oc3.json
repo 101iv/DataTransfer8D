@@ -9,7 +9,7 @@
       "database": "p567520_oc3rus",
       "charset": "utf8mb4"
     },
-    "query": "SELECT * FROM oc_product",
+    "query": "SELECT product_id,model,date_added FROM oc_product",
     "columns": [
       "product_id",
       "model",

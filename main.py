@@ -9,12 +9,11 @@ from data_sources import SQLDataSource, MySqlDataSource
 
 # Настройка логирования для main модуля (и всех модулей, использующих logging)
 # Уровень можно установить на DEBUG, если нужно видеть все логи из data_transfer
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # GUI приложение
 class DataTransferApp:
     def __init__(self, root):
-        # Логирование уже настроено благодаря вызову basicConfig выше
         self.logger = logging.getLogger(__name__) # Создаем логгер для этого класса
         self.logger.info("Инициализация DataTransferApp")
         self.root = root
