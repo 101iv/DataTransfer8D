@@ -23,6 +23,7 @@ class MySqlDataSource(DataSource):
 
     def connect(self):
         try:
+            # Включаем autocommit при подключении
             self.connection = mysql.connector.connect(
                 host=self.connection_params.get("host", "localhost"),
                 port=self.connection_params.get("port", 3306),
@@ -30,7 +31,8 @@ class MySqlDataSource(DataSource):
                 password=self.connection_params.get("password", ""),
                 database=self.connection_params.get("database", ""),
                 charset=self.connection_params.get("charset", "utf8mb4"),
-                use_unicode=True
+                use_unicode=True,
+                autocommit=True  # <-- Включаем autocommit
             )
         except mysql.connector.Error as err:
             raise Exception(f"MySQL connection failed: {err}")
@@ -105,7 +107,7 @@ class MySqlDataSource(DataSource):
             cursor.execute(query, list(row.values()))
 
         cursor.close()
-        # Вызов commit() должен происходить в вызывающем коде (data_transfer.py)
+        # Autocommit включен, commit() не нужен
 
     def update_data(self, updates: List[Dict[str, Any]], key_fields: List[str], table_name: str):
         """
@@ -139,7 +141,7 @@ class MySqlDataSource(DataSource):
             cursor.execute(query, params)
 
         cursor.close()
-        # Вызов commit() должен происходить в вызывающем коде (data_transfer.py)
+        # Autocommit включен, commit() не нужен
 
     def delete_data(self, deletions: List[Dict[str, Any]], key_fields: List[str], table_name: str):
         """
@@ -165,7 +167,7 @@ class MySqlDataSource(DataSource):
             cursor.execute(query, params)
 
         cursor.close()
-        # Вызов commit() должен происходить в вызывающем коде (data_transfer.py)
+        # Autocommit включен, commit() не нужен
     # ---------------------------------------------
 
     def disconnect(self):

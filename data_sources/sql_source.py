@@ -13,6 +13,8 @@ class SQLDataSource(DataSource):
         db_path = self.connection_params.get("path", ":memory:")
         self.connection = sqlite3.connect(db_path)
         self.connection.row_factory = sqlite3.Row  # Для доступа к колонкам по имени
+        # Включаем autocommit (isolation_level = None) для SQLite
+        self.connection.isolation_level = None # <-- Включаем autocommit
 
     def fetch_data(self, query: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         if not self.connection:
@@ -72,7 +74,6 @@ class SQLDataSource(DataSource):
             cursor.execute(query, list(row.values()))
 
         cursor.close()
-        # Вызов commit() должен происходить в вызывающем коде (data_transfer.py)
 
     def update_data(self, updates: List[Dict[str, Any]], key_fields: List[str], table_name: str):
         """
@@ -106,7 +107,7 @@ class SQLDataSource(DataSource):
             cursor.execute(query, params)
 
         cursor.close()
-        # Вызов commit() должен происходить в вызывающем коде (data_transfer.py)
+        # Autocommit включен, commit() не нужен
 
     def delete_data(self, deletions: List[Dict[str, Any]], key_fields: List[str], table_name: str):
         """
@@ -132,7 +133,7 @@ class SQLDataSource(DataSource):
             cursor.execute(query, params)
 
         cursor.close()
-        # Вызов commit() должен происходить в вызывающем коде (data_transfer.py)
+        # Autocommit включен, commit() не нужен
     # ---------------------------------------------
 
     def disconnect(self):

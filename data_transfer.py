@@ -60,10 +60,11 @@ class DataTransfer:
             source.disconnect()
 
         # Получаем данные из приемника
-        dest_config = self.config["destination"] # <-- Теперь dest_config = { "type": "csv", ... }
+        dest_config = self.config["destination"]
+        # Исправление: используем тип и параметры соединения из destination, а не source
         destination = self.get_data_source(
-            dest_config["type"], # <-- Теперь используем правильный тип
-            dest_config["connection_params"] # <-- И правильные параметры
+            dest_config["type"], # <-- Исправлено
+            dest_config["connection_params"] # <-- Исправлено
         )
         try:
             logger.debug("Подключение к приемнику...")
@@ -260,7 +261,7 @@ class DataTransfer:
 
     def execute_changes(self):
         logger.info("Начало выполнения изменений в приемнике")
-        dest_config = self.config["destination"] # <-- Теперь правильная структура
+        dest_config = self.config["destination"]
         destination = self.get_data_source(
             dest_config["type"],
             dest_config["connection_params"]
@@ -269,107 +270,43 @@ class DataTransfer:
             logger.debug("Подключение к приемнику для выполнения изменений...")
             destination.connect()
 
-            # --- Определяем, является ли приемник CSV ---
-            is_csv_destination = dest_config["type"] == "csv"
-            # ------------------------------------------
+            # --- Получаем имя таблицы для SQL/MySQL, None для CSV ---
+            table_name = dest_config.get("table", None)
+            # ------------------------------------------------------
 
             # Вставляем новые записи
             logger.info(f"Вставка {len(self.to_insert)} новых записей...")
-            if is_csv_destination:
-                 # Используем новый метод для CSV
-                 if self.to_insert:
-                     destination.insert_data(self.to_insert)
-                     logger.info(f"Вставка в CSV завершена. Всего вставлено: {len(self.to_insert)}")
-                 else:
-                     logger.info(f"Нет записей для вставки в CSV.")
-            else: # SQL/MySQL
-                for i, row in enumerate(self.to_insert):
-                    # Предполагаем, что у SQL/MySQL есть ключ 'table'
-                    table_name = dest_config.get("table") # <-- Теперь ожидаем ключ 'table' в destination
-                    if not table_name:
-                        logger.error(f"Ключ 'table' отсутствует в конфигурации destination для SQL/MySQL.")
-                        raise KeyError("Ключ 'table' отсутствует в конфигурации destination для SQL/MySQL.")
-                    placeholders = ", ".join(["%s" for _ in row])
-                    columns = ", ".join([f"`{k}`" for k in row.keys()])
-                    query = f"INSERT INTO `{table_name}` ({columns}) VALUES ({placeholders})"
-                    cursor = destination.connection.cursor()
-                    cursor.execute(query, list(row.values()))
-                    # Логирование прогресса (опционально)
-                    if (i + 1) % 100 == 0: # Логировать каждый 100-й insert
-                        logger.debug(f"Вставлено {i+1}/{len(self.to_insert)} записей...")
-                logger.info(f"Вставка в SQL/MySQL завершена. Всего вставлено: {len(self.to_insert)}")
+            if self.to_insert:
+                 destination.insert_data(self.to_insert, table_name) # Используем новый метод для всех типов
+                 logger.info(f"Вставка завершена. Всего вставлено: {len(self.to_insert)}")
+            else:
+                 logger.info(f"Нет записей для вставки.")
 
             # Обновляем существующие записи
             logger.info(f"Обновление {len(self.to_update)} существующих записей...")
-            if is_csv_destination:
-                # Используем новый метод для CSV
-                if self.to_update:
-                    destination.update_data(self.to_update, self.config["comparison"]["key_fields"])
-                    logger.info(f"Обновление в CSV завершено. Всего обновлено: {len(self.to_update)}")
-                else:
-                    logger.info(f"Нет записей для обновления в CSV.")
-            else: # SQL/MySQL
-                for i, update_item in enumerate(self.to_update):
-                    # Предполагаем, что у SQL/MySQL есть ключ 'table'
-                    table_name = dest_config.get("table") # <-- Теперь ожидаем ключ 'table' в destination
-                    if not table_name:
-                        logger.error(f"Ключ 'table' отсутствует в конфигурации destination для SQL/MySQL.")
-                        raise KeyError("Ключ 'table' отсутствует в конфигурации destination для SQL/MySQL.")
-                    # Создаем SET часть запроса
-                    set_clause = ", ".join([f"`{k}` = %s" for k in update_item["new"].keys()])
-                    where_clause = " AND ".join([f"`{k}` = %s" for k in self.config["comparison"]["key_fields"]])
-                    query = f"UPDATE `{table_name}` SET {set_clause} WHERE {where_clause}"
-                    # Подготавливаем параметры
-                    values = list(update_item["new"].values())
-                    for key_field in self.config["comparison"]["key_fields"]:
-                        values.append(update_item["old"][key_field])
-                    cursor = destination.connection.cursor()
-                    cursor.execute(query, values)
-                    # Логирование прогресса (опционально)
-                    if (i + 1) % 100 == 0: # Логировать каждый 100-й update
-                        logger.debug(f"Обновлено {i+1}/{len(self.to_update)} записей...")
-                logger.info(f"Обновление в SQL/MySQL завершено. Всего обновлено: {len(self.to_update)}")
+            if self.to_update:
+                destination.update_data(self.to_update, self.config["comparison"]["key_fields"], table_name) # Используем новый метод для всех типов
+                logger.info(f"Обновление завершено. Всего обновлено: {len(self.to_update)}")
+            else:
+                logger.info(f"Нет записей для обновления.")
 
             # Удаляем записи
             logger.info(f"Удаление {len(self.to_delete)} записей...")
-            if is_csv_destination:
-                # Используем новый метод для CSV
-                if self.to_delete:
-                    destination.delete_data(self.to_delete, self.config["comparison"]["key_fields"])
-                    logger.info(f"Удаление из CSV завершено. Всего удалено: {len(self.to_delete)}")
-                else:
-                    logger.info(f"Нет записей для удаления из CSV.")
-            else: # SQL/MySQL
-                for i, row in enumerate(self.to_delete):
-                    # Предполагаем, что у SQL/MySQL есть ключ 'table'
-                    table_name = dest_config.get("table") # <-- Теперь ожидаем ключ 'table' в destination
-                    if not table_name:
-                        logger.error(f"Ключ 'table' отсутствует в конфигурации destination для SQL/MySQL.")
-                        raise KeyError("Ключ 'table' отсутствует в конфигурации destination для SQL/MySQL.")
-                    where_clause = " AND ".join([f"`{k}` = %s" for k in self.config["comparison"]["key_fields"]])
-                    query = f"DELETE FROM `{table_name}` WHERE {where_clause}"
-                    cursor = destination.connection.cursor()
-                    values = [row[key] for key in self.config["comparison"]["key_fields"]]
-                    cursor.execute(query, values)
-                    # Логирование прогресса (опционально)
-                    if (i + 1) % 100 == 0: # Логировать каждый 100-й delete
-                        logger.debug(f"Удалено {i+1}/{len(self.to_delete)} записей...")
-                logger.info(f"Удаление из SQL/MySQL завершено. Всего удалено: {len(self.to_delete)}")
+            if self.to_delete:
+                destination.delete_data(self.to_delete, self.config["comparison"]["key_fields"], table_name) # Используем новый метод для всех типов
+                logger.info(f"Удаление завершено. Всего удалено: {len(self.to_delete)}")
+            else:
+                logger.info(f"Нет записей для удаления.")
 
-            # Фиксация изменений НЕ нужна для CSV, так как файл перезаписывается сразу
-            if not is_csv_destination:
-                logger.debug("Фиксация изменений в базе данных...")
-                destination.connection.commit()
+            # Autocommit уже включен в источниках данных, фиксация не нужна
+            # is_csv_destination = dest_config["type"] == "csv" # Больше не нужно для commit
+            # if not is_csv_destination:
+            #     logger.debug("Фиксация изменений в базе данных...")
+            #     destination.connection.commit()
             logger.info("Все изменения успешно применены.")
         except Exception as e:
             logger.error(f"Ошибка при выполнении изменений: {e}")
-            # Важно: откатить транзакцию в случае ошибки, если соединение активно и это SQL/MySQL
-            if not is_csv_destination and hasattr(destination, 'connection') and destination.connection:
-                try:
-                    destination.connection.rollback()
-                    logger.info("Транзакция откачена из-за ошибки.")
-                except Exception as rollback_e:
-                    logger.error(f"Ошибка при откате транзакции: {rollback_e}")
+            # Откат транзакции убран
             raise # Передаем ошибку выше
         finally:
             logger.debug("Отключение от приемника после выполнения изменений...")
