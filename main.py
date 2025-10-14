@@ -13,6 +13,7 @@ from data_sources import SQLDataSource, MySqlDataSource
 # Уровень можно установить на DEBUG, если нужно видеть все логи из data_transfer
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+
 # GUI приложение
 class DataTransferApp:
     def __init__(self, root):
@@ -277,11 +278,6 @@ class DataTransferApp:
             schema = source.get_schema()
             source.disconnect()
 
-            # Обновляем конфигурацию с новой схемой
-            config["source"]["schema"] = schema
-            self.config_text.delete(1.0, tk.END)
-            self.config_text.insert(1.0, json.dumps(config, indent=2))
-
             # Отображаем схему во вкладке Source Schema
             self.display_schema(self.source_schema_tree, schema)
 
@@ -315,11 +311,6 @@ class DataTransferApp:
             destination.connect()
             schema = destination.get_schema()
             destination.disconnect()
-
-            # Обновляем конфигурацию с новой схемой
-            config["destination"]["schema"] = schema
-            self.config_text.delete(1.0, tk.END)
-            self.config_text.insert(1.0, json.dumps(config, indent=2))
 
             # Отображаем схему во вкладке Destination Schema
             self.display_schema(self.dest_schema_tree, schema)

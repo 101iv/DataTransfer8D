@@ -1,6 +1,9 @@
 # data_sources/csv_source.py
 import csv
 import os
+import re
+from datetime import datetime, date
+
 from .base import DataSource
 from typing import Any, Dict, List
 
@@ -166,27 +169,55 @@ class CSVDataSource(DataSource):
         # В этом случае просто выходим, ничего не записывая (файл либо уже пуст/не существовал,
         # либо не было изменений для сохранения).
 
-
     def standard_formatting(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Стандартное форматирование данных после выборки из CSV
         """
         formatted_data = []
+        # Регулярные выражения для проверки формата даты/времени и даты
+        datetime_pattern = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
         for row in data:
             formatted_row = {}
             for key, value in row.items():
-                # Приведение типов данных
                 if isinstance(value, str):
+                    stripped_value = value.strip()
+
+                    # Проверка на формат даты и времени: YYYY-MM-DD HH:MM:SS
+                    if datetime_pattern.match(stripped_value):
+                        try:
+                            formatted_row[key] = datetime.strptime(stripped_value, '%Y-%m-%d %H:%M:%S')
+                            continue  # Переходим к следующему значению
+                        except ValueError:
+                            pass  # Если формат не подошёл, продолжаем проверки
+
+                    # Проверка на формат даты: YYYY-MM-DD
+                    if date_pattern.match(stripped_value):
+                        try:
+                            formatted_row[key] = date.fromisoformat(stripped_value)
+                            # Альтернатива: datetime.strptime(stripped_value, '%Y-%m-%d').date()
+                            continue
+                        except ValueError:
+                            pass  # Если формат не подошёл, продолжаем проверки
+
                     # Попробуем определить числовые значения
                     try:
-                        if '.' in value:
-                            formatted_row[key] = float(value)
+                        # Проверяем, содержит ли строка точку (кандидат на float)
+                        if '.' in stripped_value:
+                            float_val = float(stripped_value)
+                            # округляем до двух знаков
+                            formatted_row[key] = round(float_val, 2)
+                            continue
                         else:
-                            formatted_row[key] = int(value)
+                            # Целое число
+                            formatted_row[key] = int(stripped_value)
+                            continue
                     except ValueError:
                         # Если не число, оставляем как строку
-                        formatted_row[key] = value.strip()
+                        formatted_row[key] = stripped_value
                 else:
+                    # Если значение не строка, оставляем как есть
                     formatted_row[key] = value
             formatted_data.append(formatted_row)
         return formatted_data
