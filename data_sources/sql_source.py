@@ -141,18 +141,18 @@ class SQLDataSource(DataSource):
             self.connection.close()
 
 
-def standard_formatting(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Стандартное форматирование данных после выборки из SQLite
-    """
-    formatted_data = []
-    for row in data:
-        formatted_row = {}
-        for key, value in row.items():
-            # Приведение типов данных
-            if isinstance(value, bytes):
-                formatted_row[key] = value.decode('utf-8')
-            else:
-                formatted_row[key] = value
-        formatted_data.append(formatted_row)
-    return formatted_data
+    def standard_formatting(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Стандартное форматирование данных после выборки из SQLite
+        """
+        formatted_data = []
+        for row in data:
+            formatted_row = {}
+            for key, value in row.items():
+                # Приведение типов данных
+                if isinstance(value, bytes):
+                    formatted_row[key] = value.decode('utf-8')
+                else:
+                    formatted_row[key] = value
+            formatted_data.append(formatted_row)
+        return formatted_data

@@ -167,26 +167,26 @@ class CSVDataSource(DataSource):
         # либо не было изменений для сохранения).
 
 
-def standard_formatting(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Стандартное форматирование данных после выборки из CSV
-    """
-    formatted_data = []
-    for row in data:
-        formatted_row = {}
-        for key, value in row.items():
-            # Приведение типов данных
-            if isinstance(value, str):
-                # Попробуем определить числовые значения
-                try:
-                    if '.' in value:
-                        formatted_row[key] = float(value)
-                    else:
-                        formatted_row[key] = int(value)
-                except ValueError:
-                    # Если не число, оставляем как строку
-                    formatted_row[key] = value.strip()
-            else:
-                formatted_row[key] = value
-        formatted_data.append(formatted_row)
-    return formatted_data
+    def standard_formatting(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Стандартное форматирование данных после выборки из CSV
+        """
+        formatted_data = []
+        for row in data:
+            formatted_row = {}
+            for key, value in row.items():
+                # Приведение типов данных
+                if isinstance(value, str):
+                    # Попробуем определить числовые значения
+                    try:
+                        if '.' in value:
+                            formatted_row[key] = float(value)
+                        else:
+                            formatted_row[key] = int(value)
+                    except ValueError:
+                        # Если не число, оставляем как строку
+                        formatted_row[key] = value.strip()
+                else:
+                    formatted_row[key] = value
+            formatted_data.append(formatted_row)
+        return formatted_data

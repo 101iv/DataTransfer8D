@@ -5,10 +5,6 @@ import os  # Добавлено для проверки существовани
 from typing import Any, Dict, List, Tuple
 from data_sources import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
 
-# Импортируем функции форматирования
-from data_sources.sql_source import standard_formatting as sql_formatting
-from data_sources.mysql_source import standard_formatting as mysql_formatting
-from data_sources.csv_source import standard_formatting as csv_formatting
 
 # Настройка логирования для этого модуля
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -27,6 +23,9 @@ class DataTransfer:
         self.to_insert = []
         self.to_update = []
         self.to_delete = []
+        # Инициализируем атрибуты для хранения экземпляров DataSource
+        self.source = None
+        self.destination = None
 
     def get_data_source(self, source_type: str, connection_params: Dict[str, Any]) -> DataSource:
         logger.debug(f"Получение источника данных типа: {source_type}")
@@ -39,89 +38,83 @@ class DataTransfer:
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
 
-    def _process_data_source(self, config_part: Dict[str, Any], data_attr_name: str, formatted_attr_name: str) -> None:
+    def _process_data(self, type: str) -> None:
         """
         Унифицированный метод для загрузки, форматирования и трансформации данных из одного источника (источник или приемник).
 
-        :param config_part: Конфигурационная секция ('source' или 'destination').
-        :param data_attr_name: Имя атрибута для хранения необработанных данных ('source_data' или 'destination_data').
-        :param formatted_attr_name: Имя атрибута для хранения отформатированных данных ('formatted_source' или 'formatted_destination').
+        :param type: Имя атрибута для хранения экземпляра DataSource ('source' или 'destination').
         """
-        source_type = config_part["type"]
-        connection_params = config_part["connection_params"]
-        query = config_part["query"]
-        filters = config_part.get("filters", {})
+        source_type = self.config[type]["type"]
+        connection_params = self.config[type]["connection_params"]
+        query = self.config[type]["query"]
+        filters = self.config[type].get("filters", {})
+
+        # Создаём экземпляр DataSource
+        logger.debug(f"Создание экземпляра DataSource для {type}...")
+        data_source_instance = self.get_data_source(source_type, connection_params)
+        # Сохраняем экземпляр в атрибуте класса
+        setattr(self, type, data_source_instance)
+
+        # Подключаемся к источнику данных
+        logger.debug(f"Подключение к {type}...")
+        data_source_instance.connect()
 
         # Загрузка данных
-        logger.debug(f"Подключение к {data_attr_name.replace('_data', '')}...")
-        data_source = self.get_data_source(source_type, connection_params)
-        try:
-            data_source.connect()
-            logger.debug(f"Загрузка данных из {data_attr_name.replace('_data', '')}...")
-            raw_data = data_source.fetch_data(query, filters)
-            logger.info(f"Загружено {len(raw_data)} записей из {data_attr_name.replace('_data', '')}.")
-            setattr(self, data_attr_name, raw_data)
-        finally:
-            logger.debug(f"Отключение от {data_attr_name.replace('_data', '')}...")
-            data_source.disconnect()
+        logger.debug(f"Загрузка данных из {type}...")
+        raw_data = data_source_instance.fetch_data(query, filters)
+        logger.info(f"Загружено {len(raw_data)} записей из {type}.")
+        setattr(self, type + "_data", raw_data)
 
         # Форматирование данных
-        logger.debug(f"Форматирование {data_attr_name.replace('_data', '')} (type: {source_type})...")
-        if source_type == "sql":
-            formatted_data = sql_formatting(getattr(self, data_attr_name))
-        elif source_type == "mysql":
-            formatted_data = mysql_formatting(getattr(self, data_attr_name))
-        elif source_type == "csv":
-            formatted_data = csv_formatting(getattr(self, data_attr_name))
+        logger.debug(f"Форматирование {type} (type: {source_type})...")
+        if source_type:
+            formatted_data = data_source_instance.standard_formatting(raw_data)
+
         else:
             # Если форматирование не определено, просто копируем
-            formatted_data = [dict(row) for row in getattr(self, data_attr_name)]
+            formatted_data = [dict(row) for row in raw_data]
         logger.info(
-            f"Форматирование {data_attr_name.replace('_data', '')} завершено. Обработано {len(formatted_data)} записей.")
-        setattr(self, formatted_attr_name, formatted_data)
+            f"Форматирование {type} завершено. Обработано {len(formatted_data)} записей.")
+        setattr(self, "formatted_" + type, formatted_data)
 
     def fetch_data(self):
-        logger.info("Начало загрузки данных")
+        logger.info("Создаём и подключаем источники данных")
         # Загружаем и форматируем данные из источника
-        self._process_data_source(self.config["source"], "source_data", "formatted_source")
-
+        self._process_data("source")
         # Загружаем и форматируем данные из приемника
-        self._process_data_source(self.config["destination"], "destination_data", "formatted_destination")
+        self._process_data("destination")
         logger.info("Завершена загрузка данных")
 
-    def _apply_transform_if_configured(self, path_key: str, data_attr_name: str):
+    def _apply_transform(self, type):
         """
         Вспомогательный метод для применения трансформации к данным, если путь к файлу указан в конфигурации.
-
-        :param path_key: Ключ в конфигурации transformation ('source_path' или 'destination_path').
-        :param data_attr_name: Имя атрибута, содержащего данные для трансформации ('formatted_source' или 'formatted_destination').
         """
         transformation_config = self.config["transformation"]
-        path = transformation_config.get(path_key)
+        path = transformation_config.get(type + '_path')
         if path:
-            logger.debug(f"Загрузка трансформации для {data_attr_name.replace('formatted_', '')} из: {path}")
+            logger.debug(f"Загрузка трансформации для {type} из: {path}")
             transform_func = self.load_transform_function(path)
             if transform_func:
                 logger.debug(
-                    f"Функция трансформации для {data_attr_name.replace('formatted_', '')} загружена, применяем...")
-                current_data = getattr(self, data_attr_name)
+                    f"Функция трансформации для {type} загружена, применяем...")
+                current_data = getattr(self, 'formatted_' + type)
                 transformed_data = transform_func(current_data)
-                setattr(self, data_attr_name, transformed_data)
+                setattr(self, 'formatted_' + type, transformed_data)
                 logger.info(
-                    f"Трансформация {data_attr_name.replace('formatted_', '')} применена. Результат: {len(transformed_data)} записей.")
+                    f"Трансформация {type} применена. Результат: {len(transformed_data)} записей.")
             else:
                 logger.warning(
-                    f"Функция трансформации для {data_attr_name.replace('formatted_', '')} не найдена в {path}")
+                    f"Функция трансформации для {type} не найдена в {path}")
 
     def transform_data(self):
-        logger.info("Начало трансформации данных")
+        logger.info("Начало трансформации данных после выборки")
         logger.debug(f"Конфигурация трансформации: {self.config['transformation']}")
 
         # Трансформация исходных данных
-        self._apply_transform_if_configured('source_path', 'formatted_source')
+        self._apply_transform('source', )
 
         # Трансформация данных приемника
-        self._apply_transform_if_configured('destination_path', 'formatted_destination')
+        self._apply_transform('destination')
 
         logger.info("Трансформация данных завершена")
 
@@ -234,7 +227,7 @@ class DataTransfer:
 
     def modify_data(self):
         logger.info("Начало модификации данных перед выполнением изменений")
-        logger.debug(f"Конфигурация трансформации для модификации операций: {self.config['transformation']}")
+        logger.debug(f"Конфигурация трансформации : {self.config['transformation']}")
 
         # Трансформация данных для вставки
         self._apply_transform_to_operation_data('transform_ins_data', 'to_insert', 'transform_ins_data')
@@ -250,14 +243,12 @@ class DataTransfer:
     def execute_changes(self):
         logger.info("Начало выполнения изменений в приемнике")
         dest_config = self.config["destination"]
-        destination = self.get_data_source(
-            dest_config["type"],
-            dest_config["connection_params"]
-        )
-        try:
-            logger.debug("Подключение к приемнику для выполнения изменений...")
-            destination.connect()
 
+        # Используем уже созданный и подключенный экземпляр destination
+        destination_instance = self.destination  # Предполагается, что destination уже создан и подключен в fetch_data
+        # Подключаться не нужно, так как уже подключены
+
+        try:
             # --- Получаем имя таблицы для SQL/MySQL, None для CSV ---
             table_name = dest_config.get("table", None)
             # ------------------------------------------------------
@@ -265,7 +256,7 @@ class DataTransfer:
             # Вставляем новые записи
             logger.info(f"Вставка {len(self.to_insert)} новых записей...")
             if self.to_insert:
-                destination.insert_data(self.to_insert, table_name)  # Используем новый метод для всех типов
+                destination_instance.insert_data(self.to_insert, table_name)  # Используем новый метод для всех типов
                 logger.info(f"Вставка завершена. Всего вставлено: {len(self.to_insert)}")
             else:
                 logger.info(f"Нет записей для вставки.")
@@ -273,8 +264,8 @@ class DataTransfer:
             # Обновляем существующие записи
             logger.info(f"Обновление {len(self.to_update)} существующих записей...")
             if self.to_update:
-                destination.update_data(self.to_update, self.config["comparison"]["key_fields"],
-                                        table_name)  # Используем новый метод для всех типов
+                destination_instance.update_data(self.to_update, self.config["comparison"]["key_fields"],
+                                                 table_name)  # Используем новый метод для всех типов
                 logger.info(f"Обновление завершено. Всего обновлено: {len(self.to_update)}")
             else:
                 logger.info(f"Нет записей для обновления.")
@@ -282,8 +273,8 @@ class DataTransfer:
             # Удаляем записи
             logger.info(f"Удаление {len(self.to_delete)} записей...")
             if self.to_delete:
-                destination.delete_data(self.to_delete, self.config["comparison"]["key_fields"],
-                                        table_name)  # Используем новый метод для всех типов
+                destination_instance.delete_data(self.to_delete, self.config["comparison"]["key_fields"],
+                                                 table_name)  # Используем новый метод для всех типов
                 logger.info(f"Удаление завершено. Всего удалено: {len(self.to_delete)}")
             else:
                 logger.info(f"Нет записей для удаления.")
@@ -294,8 +285,12 @@ class DataTransfer:
             # Откат транзакции убран
             raise  # Передаем ошибу выше
         finally:
-            logger.debug("Отключение от приемника после выполнения изменений...")
-            destination.disconnect()
+            # Отключаемся от приемника и источника только после выполнения всех изменений
+            logger.debug("Отключение от источника и приемника после выполнения изменений...")
+            if self.destination and hasattr(self.destination, 'disconnect'):
+                self.destination.disconnect()
+            if self.source and hasattr(self.source, 'disconnect'):
+                self.source.disconnect()
 
     def run(self):
         logger.info("=== ЗАПУСК ПРОЦЕССА ПЕРЕНОСА ДАННЫХ ===")
