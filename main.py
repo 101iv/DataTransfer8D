@@ -78,6 +78,11 @@ class DataTransferApp:
                                      command=self.load_source_schema)
         load_source_btn.pack(side=tk.TOP, pady=5)
 
+        # Кнопка для загрузки данных из выделенной таблицы
+        load_data_from_table_btn = ttk.Button(self.source_schema_frame, text="Load Data from Selected Table",
+                                              command=self.load_data_from_selected_table)
+        load_data_from_table_btn.pack(side=tk.TOP, pady=5)
+
         # Дерево для отображения схемы источника
         self.source_schema_tree = ttk.Treeview(self.source_schema_frame)
         self.source_schema_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -355,8 +360,35 @@ class DataTransferApp:
                     values=("Column", f"{col_type} {extra_str}".strip())
                 )
 
-    def load_data(self):
-        table_name = self.table_name_entry.get().strip()
+    def load_data_from_selected_table(self):
+        # Получаем выделенный элемент в дереве схемы источника
+        selected_item = self.source_schema_tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Warning", "Please select a table from the schema tree")
+            return
+
+        # Получаем текст (имя) выделенного элемента
+        table_name = self.source_schema_tree.item(selected_item[0], "text")
+
+        # Проверяем, является ли элемент таблицей (а не колонкой)
+        parent_id = self.source_schema_tree.parent(selected_item[0])
+        if parent_id != "":  # Это колонка, а не таблица
+            # Находим родительский элемент (таблицу)
+            table_name = self.source_schema_tree.item(parent_id, "text")
+
+        # Заполняем поле ввода имени таблицы на вкладке Load Data
+        self.table_name_entry.delete(0, tk.END)
+        self.table_name_entry.insert(0, table_name)
+
+        # Переключаемся на вкладку Load Data
+        self.notebook.select(self.load_data_frame)
+
+        # Вызываем метод загрузки данных с указанным именем таблицы
+        self.load_data(table_name)
+
+    def load_data(self, table_name=None):
+        if table_name is None:
+            table_name = self.table_name_entry.get().strip()
         if not table_name:
             messagebox.showwarning("Warning", "Please enter a table name")
             return
@@ -389,38 +421,34 @@ class DataTransferApp:
             query = f"SELECT * FROM {table_name} LIMIT 10"
             rows = source.fetch_data(query)
 
-            # Получаем имена столбцов из словаря rows
+            # вывод данных если не пусто
             if rows:
                 columns = list(rows[0].keys())
-            else:
-                # Если нет данных, получаем структуру таблицы
-                source.cursor.execute(f"SELECT * FROM {table_name} LIMIT 0")
-                columns = [desc[0] for desc in source.cursor.description]
 
-            source.disconnect()
+                source.disconnect()
 
-            # Очищаем предыдущие данные в Treeview
-            for item in self.data_tree.get_children():
-                self.data_tree.delete(item)
+                # Очищаем предыдущие данные в Treeview
+                for item in self.data_tree.get_children():
+                    self.data_tree.delete(item)
 
-            # Определяем колонки Treeview
-            self.data_tree["columns"] = columns
-            self.data_tree["show"] = "headings"  # Показываем только заголовки
+                # Определяем колонки Treeview
+                self.data_tree["columns"] = columns
+                self.data_tree["show"] = "headings"  # Показываем только заголовки
 
-            # Настройка заголовков и ширины колонок
-            for col in columns:
-                self.data_tree.heading(col, text=col)
-                self.data_tree.column(col, width=100, minwidth=50)
+                # Настройка заголовков и ширины колонок
+                for col in columns:
+                    self.data_tree.heading(col, text=col)
+                    self.data_tree.column(col, width=100, minwidth=50)
 
-            # Вставка данных
-            for row in rows:
-                values = [row[col] for col in columns]
-                self.data_tree.insert("", "end", values=values)
+                # Вставка данных
+                for row in rows:
+                    values = [row[col] for col in columns]
+                    self.data_tree.insert("", "end", values=values)
 
-            self.log_message(f"Data loaded successfully from table: {table_name}")
+                self.log_message(f"Data loaded successfully from table: {table_name}")
 
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load data: {str(e)}")
+            messagebox.showerror("Error", f"Failed to load  {str(e)}")
 
     def run_transfer(self):
         self.logger.info("--- ЗАПУСК ПЕРЕНОСА ИЗ GUI ---")  # Используем self.logger
