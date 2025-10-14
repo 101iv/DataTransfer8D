@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import json
-import logging # Добавляем импорт модуля logging
+import logging  # Добавляем импорт модуля logging
 from config_manager import ConfigManager
 from data_transfer import DataTransfer
 from data_sources import SQLDataSource, MySqlDataSource
@@ -50,6 +50,11 @@ class DataTransferApp:
         self.log_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.log_frame, text="Logs")
         self.setup_log_tab()
+
+        # Вкладка Load Data
+        self.load_data_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.load_data_frame, text="Load Data")
+        self.setup_load_data_tab()
 
     def setup_config_tab(self):
         # Кнопки управления конфигурацией
@@ -147,6 +152,37 @@ class DataTransferApp:
     def setup_log_tab(self):
         self.log_text = scrolledtext.ScrolledText(self.log_frame, wrap=tk.WORD)
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+    def setup_load_data_tab(self):
+        # Кнопка загрузки данных
+        load_data_btn = ttk.Button(self.load_data_frame, text="Load Data", command=self.load_data)
+        load_data_btn.pack(side=tk.TOP, pady=5)
+
+        # Поле для ввода имени таблицы
+        table_input_frame = ttk.Frame(self.load_data_frame)
+        table_input_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        ttk.Label(table_input_frame, text="Table Name:").pack(side=tk.LEFT, padx=(0, 5))
+        self.table_name_entry = ttk.Entry(table_input_frame)
+        self.table_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Область для отображения данных
+        data_frame = ttk.LabelFrame(self.load_data_frame, text="Data Preview (First 10 rows)")
+        data_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Создаем Treeview для отображения данных
+        self.data_tree = ttk.Treeview(data_frame)
+        self.data_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Добавляем вертикальный скроллбар
+        v_scrollbar = ttk.Scrollbar(data_frame, orient="vertical", command=self.data_tree.yview)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 5), pady=5)
+        self.data_tree.configure(yscrollcommand=v_scrollbar.set)
+
+        # Добавляем горизонтальный скроллбар
+        h_scrollbar = ttk.Scrollbar(data_frame, orient="horizontal", command=self.data_tree.xview)
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=(0, 5))
+        self.data_tree.configure(xscrollcommand=h_scrollbar.set)
 
     def log_message(self, message):
         self.log_text.insert(tk.END, f"{message}\n")
@@ -319,14 +355,81 @@ class DataTransferApp:
                     values=("Column", f"{col_type} {extra_str}".strip())
                 )
 
+    def load_data(self):
+        table_name = self.table_name_entry.get().strip()
+        if not table_name:
+            messagebox.showwarning("Warning", "Please enter a table name")
+            return
+
+        try:
+            config_content = self.config_text.get(1.0, tk.END)
+            config = json.loads(config_content)
+        except json.JSONDecodeError:
+            messagebox.showerror("Error", "Invalid JSON in configuration editor")
+            return
+
+        # Пытаемся определить источник данных из конфига
+        source_config = config.get("source", {})
+        source_type = source_config.get("type", "")
+        if source_type not in ["sql", "mysql"]:
+            messagebox.showwarning("Warning", "Data loading is only supported for SQL sources")
+            return
+
+        connection_params = source_config.get("connection_params", {})
+
+        # Создаем экземпляр соответствующего источника данных
+        if source_type == "mysql":
+            source = MySqlDataSource(connection_params)
+        else:  # sql
+            source = SQLDataSource(connection_params)
+
+        try:
+            source.connect()
+            # Запрашиваем первые 10 строк из указанной таблицы
+            query = f"SELECT * FROM {table_name} LIMIT 10"
+            rows = source.fetch_data(query)
+
+            # Получаем имена столбцов из словаря rows
+            if rows:
+                columns = list(rows[0].keys())
+            else:
+                # Если нет данных, получаем структуру таблицы
+                source.cursor.execute(f"SELECT * FROM {table_name} LIMIT 0")
+                columns = [desc[0] for desc in source.cursor.description]
+
+            source.disconnect()
+
+            # Очищаем предыдущие данные в Treeview
+            for item in self.data_tree.get_children():
+                self.data_tree.delete(item)
+
+            # Определяем колонки Treeview
+            self.data_tree["columns"] = columns
+            self.data_tree["show"] = "headings"  # Показываем только заголовки
+
+            # Настройка заголовков и ширины колонок
+            for col in columns:
+                self.data_tree.heading(col, text=col)
+                self.data_tree.column(col, width=100, minwidth=50)
+
+            # Вставка данных
+            for row in rows:
+                values = [row[col] for col in columns]
+                self.data_tree.insert("", "end", values=values)
+
+            self.log_message(f"Data loaded successfully from table: {table_name}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load data: {str(e)}")
+
     def run_transfer(self):
-        self.logger.info("--- ЗАПУСК ПЕРЕНОСА ИЗ GUI ---") # Используем self.logger
+        self.logger.info("--- ЗАПУСК ПЕРЕНОСА ИЗ GUI ---")  # Используем self.logger
         # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s') # Убираем эту строку из run_transfer, так как basicConfig уже вызван
         try:
             config_content = self.config_text.get(1.0, tk.END)
             config = json.loads(config_content)
         except json.JSONDecodeError:
-            self.logger.error("Ошибка: Неверный JSON в редакторе конфигурации.") # Используем self.logger
+            self.logger.error("Ошибка: Неверный JSON в редакторе конфигурации.")  # Используем self.logger
             messagebox.showerror("Error", "Invalid JSON in configuration editor")
             return
 
@@ -334,7 +437,7 @@ class DataTransferApp:
         self.progress['value'] = 0
         try:
             transfer = DataTransfer(config)
-            transfer.run() # Теперь все логи из data_transfer должны появиться в консоли
+            transfer.run()  # Теперь все логи из data_transfer должны появиться в консоли
 
             # Обновляем счетчики после выполнения
             # (transfer.compare_data() уже вызван внутри transfer.run())
@@ -348,12 +451,11 @@ class DataTransferApp:
             self.result_text.insert(tk.END, f"- {len(transfer.to_insert)} records inserted\n")
             self.result_text.insert(tk.END, f"- {len(transfer.to_update)} records updated\n")
             self.result_text.insert(tk.END, f"- {len(transfer.to_delete)} records deleted\n")
-            self.logger.info("--- ПЕРЕНОС ЗАВЕРШЕН УСПЕШНО ИЗ GUI ---") # Используем self.logger
+            self.logger.info("--- ПЕРЕНОС ЗАВЕРШЕН УСПЕШНО ИЗ GUI ---")  # Используем self.logger
         except Exception as e:
-            self.logger.error(f"--- ПЕРЕНОС ЗАВЕРШЕН С ОШИБКОЙ ИЗ GUI: {e} ---") # Используем self.logger
+            self.logger.error(f"--- ПЕРЕНОС ЗАВЕРШЕН С ОШИБКОЙ ИЗ GUI: {e} ---")  # Используем self.logger
             self.log_message(f"Error during transfer: {e}")
             messagebox.showerror("Error", f"Transfer failed: {e}")
-
 
     def stop_transfer(self):
         self.log_message("Transfer stopped by user")
