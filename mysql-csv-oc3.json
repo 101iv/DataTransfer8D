@@ -33,7 +33,10 @@
   },
   "transformation": {
     "source_path": "",
-    "destination_path": ""
+    "destination_path": "",
+    "transform_ins_data": "",
+    "transform_upd_data": "",
+    "transform_del_data": ""
   },
   "comparison": {
     "key_fields": [
