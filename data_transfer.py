@@ -207,33 +207,44 @@ class DataTransfer:
                 return False
         return True
 
+    def _apply_transform_to_operation_data(self, path_key: str, data_attr_name: str, transform_func_name: str):
+        """
+        Вспомогательный метод для применения трансформации к спискам операций (to_insert, to_update, to_delete),
+        передавая им также formatted_source и formatted_destination.
+
+        :param path_key: Ключ в конфигурации transformation ('transform_ins_data', 'transform_upd_data', 'transform_del_data').
+        :param data_attr_name: Имя атрибута, содержащего данные для трансформации ('to_insert', 'to_update', 'to_delete').
+        :param transform_func_name: Имя функции трансформации в файле (предполагается 'transform').
+        """
+        transformation_config = self.config["transformation"]
+        path = transformation_config.get(path_key)
+        if path:
+            logger.debug(f"Загрузка трансформации {transform_func_name} для {data_attr_name} из: {path}")
+            transform_func = self.load_transform_function(path)
+            if transform_func:
+                logger.debug(f"Функция {transform_func_name} для {data_attr_name} загружена, применяем...")
+                current_data = getattr(self, data_attr_name)
+                # Передаём текущие данные и дополнительные источники
+                transformed_data = transform_func(current_data, self.formatted_source, self.formatted_destination)
+                setattr(self, data_attr_name, transformed_data)
+                logger.info(
+                    f"Трансформация {transform_func_name} для {data_attr_name} применена. Результат: {len(transformed_data)} записей.")
+            else:
+                logger.warning(f"Функция {transform_func_name} для {data_attr_name} не найдена в {path}")
+
     def modify_data(self):
         logger.info("Начало модификации данных перед выполнением изменений")
-        transformation_config = self.config["transformation"]
-        logger.debug(f"Конфигурация трансформации для модификации: {transformation_config}")
+        logger.debug(f"Конфигурация трансформации для модификации операций: {self.config['transformation']}")
 
-        # Трансформация данных для вставки и обновления
-        if transformation_config.get("destination_path"):
-            logger.debug(
-                f"Загрузка трансформации для модификации данных из: {transformation_config['destination_path']}")
-            transform_func = self.load_transform_function(transformation_config["destination_path"])
-            if transform_func:
-                logger.debug("Применение трансформации к данным для вставки...")
-                self.to_insert = transform_func(self.to_insert)
-                logger.info(f"Модификация данных для вставки завершена. Результат: {len(self.to_insert)} записей.")
-                # Для обновления нужно трансформировать только "new" часть
-                logger.debug("Применение трансформации к новым данным для обновления...")
-                for update_item in self.to_update:
-                    # Оборачиваем словарь в список, т.к. функция трансформации ожидает список
-                    transformed_new_row_list = transform_func([update_item["new"]])
-                    if transformed_new_row_list and len(transformed_new_row_list) > 0:
-                        update_item["new"] = transformed_new_row_list[0]
-                logger.info(f"Модификация новых данных для обновления завершена.")
-            else:
-                logger.warning(
-                    f"Функция трансформации для модификации не найдена в {transformation_config['destination_path']}")
-        else:
-            logger.debug("Конфигурация трансформации для модификации не указана.")
+        # Трансформация данных для вставки
+        self._apply_transform_to_operation_data('transform_ins_data', 'to_insert', 'transform_ins_data')
+
+        # Трансформация данных для обновления
+        self._apply_transform_to_operation_data('transform_upd_data', 'to_update', 'transform_upd_data')
+
+        # Трансформация данных для удаления
+        self._apply_transform_to_operation_data('transform_del_data', 'to_delete', 'transform_del_data')
+
         logger.info("Модификация данных завершена")
 
     def execute_changes(self):
@@ -281,7 +292,7 @@ class DataTransfer:
         except Exception as e:
             logger.error(f"Ошибка при выполнении изменений: {e}")
             # Откат транзакции убран
-            raise  # Передаем ошибку выше
+            raise  # Передаем ошибу выше
         finally:
             logger.debug("Отключение от приемника после выполнения изменений...")
             destination.disconnect()
@@ -290,7 +301,6 @@ class DataTransfer:
         logger.info("=== ЗАПУСК ПРОЦЕССА ПЕРЕНОСА ДАННЫХ ===")
         try:
             self.fetch_data()
-            # self.format_data() # Этот метод больше не нужен, т.к. форматирование происходит в _process_data_source
             self.transform_data()
             self.compare_data()
             self.modify_data()
