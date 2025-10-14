@@ -11,7 +11,7 @@ from data_sources.mysql_source import standard_formatting as mysql_formatting
 from data_sources.csv_source import standard_formatting as csv_formatting
 
 # Настройка логирования для этого модуля
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__) # Создаем логгер для этого файла
 
 # Основной класс переноса данных
@@ -61,22 +61,19 @@ class DataTransfer:
 
         # Получаем данные из приемника
         dest_config = self.config["destination"]
-        # Исправление: используем тип и параметры соединения из destination, а не source
         destination = self.get_data_source(
-            dest_config["type"], # <-- Исправлено
-            dest_config["connection_params"] # <-- Исправлено
+            dest_config["type"],
+            dest_config["connection_params"]
         )
         try:
             logger.debug("Подключение к приемнику...")
             destination.connect()
-            # В простом случае - получаем все данные из таблицы или CSV
-            # Для CSV используем query из connection_params или путь
-            query_for_dest = dest_config.get("query", "") # Используем query, если есть
+
+            query_for_dest = dest_config.get("query", "")
             if not query_for_dest and dest_config["type"] == "csv":
-                # Если query нет, и тип CSV, используем path из connection_params
                 query_for_dest = dest_config["connection_params"].get("path", "")
             logger.debug(f"Выполнение запроса к приемнику: {query_for_dest}")
-            self.destination_data = destination.fetch_data(query_for_dest) # Передаем query/path
+            self.destination_data = destination.fetch_data(query_for_dest)
             logger.info(f"Загружено {len(self.destination_data)} записей из приемника.")
         except KeyError as e:
              logger.error(f"Ключ отсутствует в конфигурации destination: {e}")
@@ -209,17 +206,14 @@ class DataTransfer:
 
     def get_key(self, row: Dict[str, Any], key_fields: List[str]) -> str:
         # Создаем ключ из указанных полей
-        # logger.debug(f"Создание ключа для строки: {row}") # Это может быть много
         key_parts = []
         for field in key_fields:
             key_parts.append(str(row.get(field, "")))
         key_str = "|".join(key_parts)
-        # logger.debug(f"Сгенерированный ключ: {key_str}") # Это может быть много
         return key_str
 
     def rows_equal(self, row1: Dict[str, Any], row2: Dict[str, Any]) -> bool:
         # Проверяем равенство строк (упрощенно)
-        # logger.debug(f"Сравнение строк: {row1} и {row2}") # Это может быть много
         for key in row1:
             if key not in row2:
                 continue
@@ -298,11 +292,6 @@ class DataTransfer:
             else:
                 logger.info(f"Нет записей для удаления.")
 
-            # Autocommit уже включен в источниках данных, фиксация не нужна
-            # is_csv_destination = dest_config["type"] == "csv" # Больше не нужно для commit
-            # if not is_csv_destination:
-            #     logger.debug("Фиксация изменений в базе данных...")
-            #     destination.connection.commit()
             logger.info("Все изменения успешно применены.")
         except Exception as e:
             logger.error(f"Ошибка при выполнении изменений: {e}")

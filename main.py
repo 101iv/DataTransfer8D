@@ -7,6 +7,8 @@ from config_manager import ConfigManager
 from data_transfer import DataTransfer
 from data_sources import SQLDataSource, MySqlDataSource
 
+# todo сделать пользовательское форматирование и примеры конфига для разных источников
+
 # Настройка логирования для main модуля (и всех модулей, использующих logging)
 # Уровень можно установить на DEBUG, если нужно видеть все логи из data_transfer
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
