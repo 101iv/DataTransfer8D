@@ -55,7 +55,7 @@ class DataTransfer:
         # Сохраняем экземпляр в атрибуте класса
         setattr(self, type, data_source_instance)
 
-        # Подключаемся к источнику данных
+        # Подключаемся
         logger.debug(f"Подключение к {type}...")
         data_source_instance.connect()
 
@@ -85,26 +85,6 @@ class DataTransfer:
         self._process_data("destination")
         logger.info("Завершена загрузка данных")
 
-    def _apply_transform(self, type):
-        """
-        Вспомогательный метод для применения трансформации к данным, если путь к файлу указан в конфигурации.
-        """
-        transformation_config = self.config["transformation"]
-        path = transformation_config.get(type + '_path')
-        if path:
-            logger.debug(f"Загрузка трансформации для {type} из: {path}")
-            transform_func = self.load_transform_function(path)
-            if transform_func:
-                logger.debug(
-                    f"Функция трансформации для {type} загружена, применяем...")
-                current_data = getattr(self, 'formatted_' + type)
-                transformed_data = transform_func(current_data)
-                setattr(self, 'formatted_' + type, transformed_data)
-                logger.info(
-                    f"Трансформация {type} применена. Результат: {len(transformed_data)} записей.")
-            else:
-                logger.warning(
-                    f"Функция трансформации для {type} не найдена в {path}")
 
     def modify_data_after_fetch(self):
         logger.info("Начало модификации данных после выборки")
@@ -234,12 +214,12 @@ class DataTransfer:
 
         # Трансформация данных для обновления
         if self.to_update:
-            self._apply_transform('transform_upd_data_patch', 'to_update', 'transform_ins_data',
+            self._apply_transform('transform_upd_data_patch', 'to_update', 'transform_upd_data',
                                   additional_args=[self.formatted_source, self.formatted_destination])
 
         # Трансформация данных для вставки
         if self.to_insert:
-            self._apply_transform('transform_ins_data_patch', 'to_insert', 'transform_upd_data',
+            self._apply_transform('transform_ins_data_patch', 'to_insert', 'transform_ins_data',
                               additional_args=[self.formatted_source, self.formatted_destination])
 
         # Трансформация данных для удаления

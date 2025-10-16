@@ -11,7 +11,7 @@ from typing import Any, Dict, List
 class CSVDataSource(DataSource):
     def __init__(self, connection_params: Dict[str, Any]):
         self.connection_params = connection_params
-        self.file_path = connection_params.get("path", "") or connection_params.get("query", "")
+        self.file_path = connection_params.get("query", "") or connection_params.get("path", "")
         self.delimiter = connection_params.get("delimiter", ",")
         self.newline = connection_params.get("newline", '') # Для Windows совместимости
         # --- Новое: внутреннее состояние данных ---

@@ -20,7 +20,7 @@
   "destination": {
     "type": "csv",
     "connection_params": {
-      "path": "oc_product-test.csv",
+      "path": "",
       "delimiter": ","
     },
     "query": "oc_product-test.csv",
@@ -31,16 +31,16 @@
     ],
     "filters": {}
   },
+  "comparison": {
+    "key_fields": [
+      "product_id"
+    ]
+  },
   "transformation": {
     "source_path": "user_transformations.py",
     "destination_path": "user_transformations.py",
     "transform_upd_data_patch": "user_transformations.py",
     "transform_ins_data_patch": "user_transformations.py",
     "transform_del_data_patch": "user_transformations.py"
-  },
-  "comparison": {
-    "key_fields": [
-      "product_id"
-    ]
   }
 }
