@@ -32,11 +32,11 @@
     "filters": {}
   },
   "transformation": {
-    "source_path": "",
-    "destination_path": "",
-    "transform_ins_data": "",
-    "transform_upd_data": "",
-    "transform_del_data": ""
+    "source_path": "user_transformations.py",
+    "destination_path": "user_transformations.py",
+    "transform_upd_data_patch": "user_transformations.py",
+    "transform_ins_data_patch": "user_transformations.py",
+    "transform_del_data_patch": "user_transformations.py"
   },
   "comparison": {
     "key_fields": [

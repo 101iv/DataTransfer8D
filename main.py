@@ -7,7 +7,7 @@ from config_manager import ConfigManager
 from data_transfer import DataTransfer
 from data_sources import SQLDataSource, MySqlDataSource
 
-# todo сделать пользовательское форматирование и примеры конфига для разных источников
+# todo сделать пользовательское форматирование , после выборки и перед изменениями
 
 # Настройка логирования для main модуля (и всех модулей, использующих logging)
 # Уровень можно установить на DEBUG, если нужно видеть все логи из data_transfer
