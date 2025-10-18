@@ -27,35 +27,25 @@ class DataTransferApp:
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Вкладка конфигурации
-        self.config_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.config_frame, text="Configuration")
-        self.setup_config_tab()
+        # Определите список вкладок: (имя_атрибута_фрейма, текст_вкладки, имя_метода_настройки)
+        tabs_config = [
+            ("config_frame", "Configuration", "setup_config_tab"),
+            ("source_schema_frame", "Source Schema", "setup_source_schema_tab"),
+            ("dest_schema_frame", "Destination Schema", "setup_dest_schema_tab"),
+            ("table_preview", "Table", "setup_load_data_tab"),
+            ("log_frame", "Logs", "setup_log_tab"),
+            ("execution_frame", "Execution", "setup_execution_tab"),
+        ]
 
-        # Вкладка схемы источника
-        self.source_schema_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.source_schema_frame, text="Source Schema")
-        self.setup_source_schema_tab()
 
-        # Вкладка схемы приемника
-        self.dest_schema_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.dest_schema_frame, text="Destination Schema")
-        self.setup_dest_schema_tab()
+        for frame_attr, tab_text, setup_method_name in tabs_config:
+            frame = ttk.Frame(self.notebook)
+            setattr(self, frame_attr, frame)
+            self.notebook.add(frame, text=tab_text)
+            setup_method = getattr(self, setup_method_name)
+            setup_method()
 
-        # Вкладка выполнения
-        self.execution_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.execution_frame, text="Execution")
-        self.setup_execution_tab()
 
-        # Вкладка логов
-        self.log_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.log_frame, text="Logs")
-        self.setup_log_tab()
-
-        # Вкладка Load Data
-        self.load_data_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.load_data_frame, text="Load Data")
-        self.setup_load_data_tab()
 
     def setup_config_tab(self):
         # Кнопки управления конфигурацией
@@ -73,52 +63,56 @@ class DataTransferApp:
         # Загружаем пример конфигурации
         self.new_config()
 
-    def setup_source_schema_tab(self):
-        # Кнопка загрузки схемы источника
-        load_source_btn = ttk.Button(self.source_schema_frame, text="Load Source Schema",
-                                     command=self.load_source_schema)
-        load_source_btn.pack(side=tk.TOP, pady=5)
+    def setup_schema_tab(self, frame_attr, button_text, command):
+        """
+        Вспомогательный метод для настройки вкладок схемы (источник и приемник).
 
-        # Кнопка для загрузки данных из выделенной таблицы
-        load_data_from_table_btn = ttk.Button(self.source_schema_frame, text="Load Data from Selected Table",
-                                              command=self.load_data_from_selected_table)
-        load_data_from_table_btn.pack(side=tk.TOP, pady=5)
+        :param frame_attr: Атрибут экземпляра класса, содержащий фрейм вкладки (например, 'source_schema_frame')
+        :param button_text: Текст для кнопки загрузки схемы
+        :param command: Команда (функция), привязанная к кнопке загрузки
+        :return: Объект Treeview, созданный для вкладки
+        """
+        # Получаем фрейм вкладки
+        frame = getattr(self, frame_attr)
 
-        # Дерево для отображения схемы источника
-        self.source_schema_tree = ttk.Treeview(self.source_schema_frame)
-        self.source_schema_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Кнопка загрузки схемы
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Button(btn_frame, text=button_text, command=command).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="Load from Table", command=self.load_from_table).pack(side=tk.LEFT, padx=2)
+
+        # Дерево для отображения схемы
+        tree = ttk.Treeview(frame)
+        tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Определяем колонки
-        self.source_schema_tree["columns"] = ("Type", "Details")
-        self.source_schema_tree.column("#0", width=150, minwidth=100)
-        self.source_schema_tree.column("Type", width=100, minwidth=80)
-        self.source_schema_tree.column("Details", width=300, minwidth=150)
+        tree["columns"] = ("Type", "Details")
+        tree.column("#0", width=150, minwidth=100)
+        tree.column("Type", width=100, minwidth=80)
+        tree.column("Details", width=300, minwidth=150)
 
         # Заголовки колонок
-        self.source_schema_tree.heading("#0", text="Name")
-        self.source_schema_tree.heading("Type", text="Type")
-        self.source_schema_tree.heading("Details", text="Details")
+        tree.heading("#0", text="Name")
+        tree.heading("Type", text="Type")
+        tree.heading("Details", text="Details")
+
+        return tree
+
+    def setup_source_schema_tab(self):
+        # Настройка вкладки схемы источника
+        self.source_schema_tree = self.setup_schema_tab(
+            frame_attr="source_schema_frame",
+            button_text="Load Source Schema",
+            command=self.load_source_schema
+        )
 
     def setup_dest_schema_tab(self):
-        # Кнопка загрузки схемы приемника
-        load_dest_btn = ttk.Button(self.dest_schema_frame, text="Load Destination Schema",
-                                   command=self.load_dest_schema)
-        load_dest_btn.pack(side=tk.TOP, pady=5)
-
-        # Дерево для отображения схемы приемника
-        self.dest_schema_tree = ttk.Treeview(self.dest_schema_frame)
-        self.dest_schema_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-
-        # Определяем колонки
-        self.dest_schema_tree["columns"] = ("Type", "Details")
-        self.dest_schema_tree.column("#0", width=150, minwidth=100)
-        self.dest_schema_tree.column("Type", width=100, minwidth=80)
-        self.dest_schema_tree.column("Details", width=300, minwidth=150)
-
-        # Заголовки колонок
-        self.dest_schema_tree.heading("#0", text="Name")
-        self.dest_schema_tree.heading("Type", text="Type")
-        self.dest_schema_tree.heading("Details", text="Details")
+        # Настройка вкладки схемы приемника
+        self.dest_schema_tree = self.setup_schema_tab(
+            frame_attr="dest_schema_frame",
+            button_text="Load Destination Schema",
+            command=self.load_dest_schema
+        )
 
     def setup_execution_tab(self):
         # Кнопки управления выполнением
@@ -160,20 +154,15 @@ class DataTransferApp:
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
     def setup_load_data_tab(self):
-        # Кнопка загрузки данных
-        load_data_btn = ttk.Button(self.load_data_frame, text="Load Data", command=self.load_data)
-        load_data_btn.pack(side=tk.TOP, pady=5)
 
-        # Поле для ввода имени таблицы
-        table_input_frame = ttk.Frame(self.load_data_frame)
-        table_input_frame.pack(fill=tk.X, padx=5, pady=5)
-
-        ttk.Label(table_input_frame, text="Table Name:").pack(side=tk.LEFT, padx=(0, 5))
-        self.table_name_entry = ttk.Entry(table_input_frame)
-        self.table_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        # метка
+        btn_frame = ttk.Frame(self.table_preview)
+        btn_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.table_name_label = ttk.Label(btn_frame, text="Table Name:")
+        self.table_name_label.pack(side=tk.LEFT, padx=(0, 5))
 
         # Область для отображения данных
-        data_frame = ttk.LabelFrame(self.load_data_frame, text="Data Preview (First 10 rows)")
+        data_frame = ttk.LabelFrame(self.table_preview, text="Data Preview (First 10 rows)")
         data_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Создаем Treeview для отображения данных
@@ -223,21 +212,21 @@ class DataTransferApp:
     def new_config(self):
         default_config = {
             "source": {
-                "type": "sql",
+                "type": "csv",
                 "connection_params": {
-                    "path": "source.db"
+                    "path": ""
                 },
-                "query": "SELECT * FROM source_table",
-                "columns": ["id", "name", "value"],
+                "query": "test.csv",
+                "columns": ["product_id", "model", "date_added"],
                 "filters": {}
             },
             "destination": {
                 "type": "sql",
                 "connection_params": {
-                    "path": "destination.db"
+                    "path": "test.db"
                 },
-                "table": "destination_table",
-                "columns": ["id", "name", "value"]
+                "table": "oc_product",
+                "columns": ["product_id", "model", "date_added"]
             },
             "transformation": {
                 "source_path": "",
@@ -261,9 +250,7 @@ class DataTransferApp:
 
         source_config = config.get("source", {})
         source_type = source_config.get("type", "")
-        if source_type not in ["sql", "mysql"]:
-            messagebox.showwarning("Warning", "Schema loading is only supported for SQL sources")
-            return
+
 
         connection_params = source_config.get("connection_params", {})
 
@@ -351,38 +338,68 @@ class DataTransferApp:
                     values=("Column", f"{col_type} {extra_str}".strip())
                 )
 
-    def load_data_from_selected_table(self):
-        # Получаем выделенный элемент в дереве схемы источника
-        selected_item = self.source_schema_tree.selection()
+    def load_from_table(self):
+        # Проверяем, какая вкладка схемы сейчас активна
+        current_tab_window = self.notebook.nametowidget(self.notebook.select())
+
+        # Определяем, какое дерево использовать и какую функцию загрузки вызвать
+        if current_tab_window == self.source_schema_frame:
+            tree = self.source_schema_tree
+            schema_type = "source"
+        elif current_tab_window == self.dest_schema_frame:
+            tree = self.dest_schema_tree
+            schema_type = "destination"
+        else:
+            messagebox.showwarning("Warning", "Please select a table from the Source or Destination Schema tab")
+            return
+
+        # Получаем выделенный элемент в соответствующем дереве
+        selected_item = tree.selection()
         if not selected_item:
             messagebox.showwarning("Warning", "Please select a table from the schema tree")
             return
 
         # Получаем текст (имя) выделенного элемента
-        table_name = self.source_schema_tree.item(selected_item[0], "text")
+        item_text = tree.item(selected_item[0], "text")
 
         # Проверяем, является ли элемент таблицей (а не колонкой)
-        parent_id = self.source_schema_tree.parent(selected_item[0])
+        parent_id = tree.parent(selected_item[0])
         if parent_id != "":  # Это колонка, а не таблица
             # Находим родительский элемент (таблицу)
-            table_name = self.source_schema_tree.item(parent_id, "text")
+            table_name = tree.item(parent_id, "text")
+        else:  # Это таблица
+            table_name = item_text
 
         # Заполняем поле ввода имени таблицы на вкладке Load Data
-        self.table_name_entry.delete(0, tk.END)
-        self.table_name_entry.insert(0, table_name)
+        self.table_name_label.config(text=f"Таблица: {table_name}")
 
         # Переключаемся на вкладку Load Data
-        self.notebook.select(self.load_data_frame)
+        self.notebook.select(self.table_preview)
 
-        # Вызываем метод загрузки данных с указанным именем таблицы
-        self.load_data(table_name)
+        # Вызываем универсальный метод загрузки данных с указанным именем таблицы и типом схемы
+        self.load_data(table_name, schema_type=schema_type)
 
-    def load_data(self, table_name=None):
+    def load_data(self, table_name=None, schema_type=None):
+        """
+        Загружает первые 10 строк из указанной таблицы из источника или приемника.
+
+        :param table_name: Имя таблицы для загрузки. Если None, берется из self.table_name_entry.
+        :param schema_type: "source" или "destination". Определяет, откуда загружать данные.
+                            Если None, по умолчанию "source".
+        """
         if table_name is None:
             table_name = self.table_name_entry.get().strip()
         if not table_name:
             messagebox.showwarning("Warning", "Please enter a table name")
             return
+
+        # Если schema_type не указан, по умолчанию загружаем из источника
+        if schema_type is None:
+            schema_type = "source"
+
+        # Выбираем конфигурацию в зависимости от типа схемы
+        config_key = "source" if schema_type == "source" else "destination"
+        connection_config_key = f"{schema_type}_connection_params"  # Для логов
 
         try:
             config_content = self.config_text.get(1.0, tk.END)
@@ -391,17 +408,19 @@ class DataTransferApp:
             messagebox.showerror("Error", "Invalid JSON in configuration editor")
             return
 
-        # Пытаемся определить источник данных из конфига
-        source_config = config.get("source", {})
-        source_type = source_config.get("type", "")
-        if source_type not in ["sql", "mysql"]:
-            messagebox.showwarning("Warning", "Data loading is only supported for SQL sources")
+        # Получаем конфигурацию для указанного типа (source или destination)
+        db_config = config.get(config_key, {})
+        db_type = db_config.get("type", "")
+
+        if db_type not in ["sql", "mysql"]:
+            messagebox.showwarning("Warning",
+                                   f"Data loading is only supported for SQL sources. Selected schema: {config_key}")
             return
 
-        connection_params = source_config.get("connection_params", {})
+        connection_params = db_config.get("connection_params", {})
 
         # Создаем экземпляр соответствующего источника данных
-        if source_type == "mysql":
+        if db_type == "mysql":
             source = MySqlDataSource(connection_params)
         else:  # sql
             source = SQLDataSource(connection_params)
@@ -412,7 +431,7 @@ class DataTransferApp:
             query = f"SELECT * FROM {table_name} LIMIT 10"
             rows = source.fetch_data(query)
 
-            # вывод данных если не пусто
+            # Вывод данных если не пусто
             if rows:
                 columns = list(rows[0].keys())
 
@@ -436,10 +455,23 @@ class DataTransferApp:
                     values = [row[col] for col in columns]
                     self.data_tree.insert("", "end", values=values)
 
-                self.log_message(f"Data loaded successfully from table: {table_name}")
+                self.log_message(f"Data loaded successfully from table '{table_name}' in {config_key} schema.")
+
+            else:
+                # Если данных нет
+                # Очищаем Treeview
+                for item in self.data_tree.get_children():
+                    self.data_tree.delete(item)
+                # Очищаем колонки
+                self.data_tree["columns"] = ()
+                self.data_tree["show"] = "tree"  # Показываем пустое дерево или просто ничего
+
+                self.log_message(f"No data found in table '{table_name}' in {config_key} schema or table is empty.")
 
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load  {str(e)}")
+            source.disconnect()  # Убедимся, что соединение закрыто при ошибке
+            messagebox.showerror("Error", f"Failed to load data from {connection_config_key}: {str(e)}")
+            self.log_message(f"Error loading data: {str(e)}")
 
     def run_transfer(self):
         self.logger.info("--- ЗАПУСК ПЕРЕНОСА ИЗ GUI ---")  # Используем self.logger

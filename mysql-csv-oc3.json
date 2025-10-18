@@ -23,7 +23,7 @@
       "path": "",
       "delimiter": ","
     },
-    "query": "oc_product-test.csv",
+    "query": "test.csv",
     "columns": [
       "product_id",
       "model",
