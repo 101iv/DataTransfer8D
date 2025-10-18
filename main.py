@@ -4,8 +4,9 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 import json
 import logging  # Добавляем импорт модуля logging
 from config_manager import ConfigManager
-from data_transfer import DataTransfer
+from job_manager import JobManager
 from data_sources import SQLDataSource, MySqlDataSource, CSVDataSource
+import sys
 
 # todo сделать пользовательское форматирование , после выборки и перед изменениями
 
@@ -13,6 +14,21 @@ from data_sources import SQLDataSource, MySqlDataSource, CSVDataSource
 # Уровень можно установить на DEBUG, если нужно видеть все логи из data_transfer
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+class TextHandler(logging.Handler):
+    """Класс-обработчик для направления сообщений logging в виджет tkinter Text."""
+    def __init__(self, text_widget):
+        super().__init__()
+        self.text_widget = text_widget
+
+    def emit(self, record):
+        """Вызывается, когда логгер получает сообщение."""
+        msg = self.format(record)
+        # Добавляем сообщение в конец текстового поля
+        self.text_widget.insert(tk.END, msg + '\n')
+        # Прокручиваем вниз, чтобы видеть последние сообщения
+        self.text_widget.see(tk.END)
+        # Обновляем GUI
+        self.text_widget.update_idletasks()
 
 # GUI приложение
 class DataTransferApp:
@@ -38,14 +54,39 @@ class DataTransferApp:
             ("execution_frame", "Execution", "setup_execution_tab"),
         ]
 
+        # --- НАЧАЛО ИЗМЕНЕНИЙ ---
+        # Создаем все фреймы и настраиваем вкладки
         for frame_attr, tab_text, setup_method_name in tabs_config:
             frame = ttk.Frame(self.notebook)
             setattr(self, frame_attr, frame)
             self.notebook.add(frame, text=tab_text)
             setup_method = getattr(self, setup_method_name)
-            setup_method()
+            setup_method()  # Вызываем setup_log_tab тоже
 
-        # --- Новая логика: Загрузка конфига из default.json при инициализации ---
+        # После того, как self.log_text создан в setup_log_tab,
+        # настраиваем logging, чтобы оно использовало это поле
+        # Очищаем все существующие обработчики у корневого логгера (если были из basicConfig)
+        root_logger = logging.getLogger()
+        root_logger.handlers.clear()
+
+        # Устанавливаем уровень корневого логгера (например, DEBUG)
+        root_logger.setLevel(logging.DEBUG)
+
+        # Создаем наш кастомный TextHandler
+        text_handler = TextHandler(self.log_text)
+        # Устанавливаем формат для сообщений
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        text_handler.setFormatter(formatter)
+
+        # Добавляем обработчик к корневому логгеру
+        root_logger.addHandler(text_handler)
+
+        # Также можно добавить обработчик в консоль, если нужно дублировать
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+
+        # Загрузка конфига по умолчанию
         self.load_default_config_at_startup()
 
     def load_default_config_at_startup(self):
@@ -409,7 +450,7 @@ class DataTransferApp:
             table_name = item_text
 
         # Заполняем поле ввода имени таблицы на вкладке Load Data
-        self.table_name_label.config(text=f"Таблица: {table_name}")
+        self.table_name_label.config(text=f"Table: {table_name} from {schema_type}")
 
         # Переключаемся на вкладку Load Data
         self.notebook.select(self.table_preview)
@@ -523,11 +564,11 @@ class DataTransferApp:
         self.log_message("Starting data transfer...")
         self.progress['value'] = 0
         try:
-            transfer = DataTransfer(config)
-            transfer.run()  # Теперь все логи из data_transfer должны появиться в консоли
+            transfer = JobManager(config)
+            transfer.run()
 
             # Обновляем счетчики после выполнения
-            # (transfer.compare_data() уже вызван внутри transfer.run())
+
             self.insert_count.config(text=str(len(transfer.to_insert)))
             self.update_count.config(text=str(len(transfer.to_update)))
             self.delete_count.config(text=str(len(transfer.to_delete)))

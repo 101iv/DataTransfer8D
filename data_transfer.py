@@ -13,8 +13,12 @@ logger = logging.getLogger(__name__)  # Создаем логгер для эт�
 
 # Основной класс переноса данных
 class DataTransfer:
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], source: DataSource, destination: DataSource):
         logger.info("Инициализация DataTransfer")
+        # Инициализируем атрибуты для хранения экземпляров DataSource
+        self.source = source
+        self.destination = destination
+
         self.config = config
         self.source_data = []
         self.destination_data = []
@@ -23,66 +27,39 @@ class DataTransfer:
         self.to_insert = []
         self.to_update = []
         self.to_delete = []
-        # Инициализируем атрибуты для хранения экземпляров DataSource
-        self.source = None
-        self.destination = None
 
-    def get_data_source(self, source_type: str, connection_params: Dict[str, Any]) -> DataSource:
-        logger.debug(f"Получение источника данных типа: {source_type}")
-        if source_type == "sql":
-            return SQLDataSource(connection_params)
-        elif source_type == "mysql":
-            return MySqlDataSource(connection_params)
-        elif source_type == "csv":
-            return CSVDataSource(connection_params)
-        else:
-            raise ValueError(f"Unsupported source type: {source_type}")
 
-    def _process_data(self, type: str) -> None:
+
+    def _process_data(self, type_source: str, source_instance) -> None:
         """
         Унифицированный метод для загрузки, форматирования и трансформации данных из одного источника (источник или приемник).
 
-        :param type: Имя атрибута для хранения экземпляра DataSource ('source' или 'destination').
+        :param type_source: Имя атрибута для хранения экземпляра DataSource ('source' или 'destination').
         """
-        source_type = self.config[type]["type"]
-        connection_params = self.config[type]["connection_params"]
-        query = self.config[type]["query"]
-        filters = self.config[type].get("filters", {})
+        query = self.config[type_source]["query"]
+        filters = self.config[type_source].get("filters", {})
 
-        # Создаём экземпляр DataSource
-        logger.debug(f"Создание экземпляра DataSource для {type}...")
-        data_source_instance = self.get_data_source(source_type, connection_params)
-        # Сохраняем экземпляр в атрибуте класса
-        setattr(self, type, data_source_instance)
-
-        # Подключаемся
-        logger.debug(f"Подключение к {type}...")
-        data_source_instance.connect()
 
         # Загрузка данных
-        logger.debug(f"Загрузка данных из {type}...")
-        raw_data = data_source_instance.fetch_data(query, filters)
-        logger.info(f"Загружено {len(raw_data)} записей из {type}.")
-        setattr(self, type + "_data", raw_data)
+        logger.debug(f"Загрузка данных из {type_source}...")
+        raw_data = source_instance.fetch_data(query, filters)
+        logger.info(f"Загружено {len(raw_data)} записей из {type_source}.")
+        setattr(self, type_source + "_data", raw_data)
 
         # Форматирование данных
-        logger.debug(f"Форматирование {type} (type: {source_type})...")
-        if source_type:
-            formatted_data = data_source_instance.standard_formatting(raw_data)
+        logger.debug(f"Форматирование {type_source} ...")
+        formatted_data = source_instance.standard_formatting(raw_data)
 
-        else:
-            # Если форматирование не определено, просто копируем
-            formatted_data = [dict(row) for row in raw_data]
         logger.info(
-            f"Форматирование {type} завершено. Обработано {len(formatted_data)} записей.")
-        setattr(self, "formatted_" + type, formatted_data)
+            f"Форматирование {type_source} завершено. Обработано {len(formatted_data)} записей.")
+        setattr(self, "formatted_" + type_source, formatted_data)
 
     def fetch_data(self):
         logger.info("Создаём и подключаем источники данных")
         # Загружаем и форматируем данные из источника
-        self._process_data("source")
+        self._process_data("source", self.source)
         # Загружаем и форматируем данные из приемника
-        self._process_data("destination")
+        self._process_data("destination", self.destination)
         logger.info("Завершена загрузка данных")
 
 
@@ -272,14 +249,9 @@ class DataTransfer:
         except Exception as e:
             logger.error(f"Ошибка при выполнении изменений: {e}")
             # Откат транзакции убран
-            raise  # Передаем ошибу выше
+            raise  # Передаем ошибку выше
         finally:
-            # Отключаемся от приемника и источника только после выполнения всех изменений
-            logger.debug("Отключение от источника и приемника после выполнения изменений...")
-            if self.destination and hasattr(self.destination, 'disconnect'):
-                self.destination.disconnect()
-            if self.source and hasattr(self.source, 'disconnect'):
-                self.source.disconnect()
+            pass
 
     def run(self):
         logger.info("=== ЗАПУСК ПРОЦЕССА ПЕРЕНОСА ДАННЫХ ===")
