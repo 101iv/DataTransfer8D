@@ -23,6 +23,7 @@ class DataTransferApp:
         self.root.title("Data Transfer Tool")
         self.root.geometry("1000x700")
         self.config_manager = ConfigManager()
+
         # Создаем вкладки
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -37,7 +38,6 @@ class DataTransferApp:
             ("execution_frame", "Execution", "setup_execution_tab"),
         ]
 
-
         for frame_attr, tab_text, setup_method_name in tabs_config:
             frame = ttk.Frame(self.notebook)
             setattr(self, frame_attr, frame)
@@ -45,6 +45,38 @@ class DataTransferApp:
             setup_method = getattr(self, setup_method_name)
             setup_method()
 
+        # --- Новая логика: Загрузка конфига из default.json при инициализации ---
+        self.load_default_config_at_startup()
+
+    def load_default_config_at_startup(self):
+        """
+        Пытается загрузить конфигурацию из файла 'default.json' при запуске приложения.
+        Если файл не найден или содержит ошибки, используется конфигурация по умолчанию.
+        """
+        default_config_path = "default.json"
+        try:
+            # Пытаемся загрузить конфиг из файла default.json
+            self.config_manager.load_config(default_config_path)
+            # Обновляем текстовое поле конфигурации
+            self.config_text.delete(1.0, tk.END)
+            self.config_text.insert(1.0, json.dumps(self.config_manager.get_config(), indent=2))
+            self.log_message(f"Configuration loaded from: {default_config_path}")
+            self.logger.info(f"Configuration loaded from: {default_config_path}")
+        except FileNotFoundError:
+            self.logger.warning(f"File {default_config_path} not found. Loading default config.")
+            self.log_message(f"File {default_config_path} not found. Loading default config.")
+            # Если файл не найден, загружаем конфигурацию по умолчанию
+            self.new_config()
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Invalid JSON in {default_config_path}: {e}. Loading default config.")
+            self.log_message(f"Invalid JSON in {default_config_path}. Loading default config.")
+            # Если JSON некорректен, загружаем конфигурацию по умолчанию
+            self.new_config()
+        except Exception as e:
+            self.logger.error(f"Unexpected error loading {default_config_path}: {e}. Loading default config.")
+            self.log_message(f"Error loading {default_config_path}. Loading default config.")
+            # На всякий случай, если возникнет другая ошибка, также загружаем конфигурацию по умолчанию
+            self.new_config()
 
 
     def setup_config_tab(self):
@@ -60,8 +92,14 @@ class DataTransferApp:
         self.config_text = scrolledtext.ScrolledText(self.config_frame, wrap=tk.WORD)
         self.config_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Загружаем пример конфигурации
-        self.new_config()
+        # Примечание: Загрузка начального конфига теперь происходит в load_default_config_at_startup
+        # Поэтому вызов self.new_config() здесь больше не нужен, если мы хотим сначала попытаться загрузить default.json
+
+
+    # ... (остальные методы остаются без изменений, включая setup_source_schema_tab, setup_dest_schema_tab,
+    # setup_execution_tab, setup_log_tab, setup_load_data_tab, log_message, load_config, save_config,
+    # new_config, load_source_schema, load_dest_schema, display_schema, load_from_table, load_data,
+    # run_transfer, stop_transfer) ...
 
     def setup_schema_tab(self, frame_attr, button_text, command):
         """
@@ -233,7 +271,7 @@ class DataTransferApp:
                 "destination_path": ""
             },
             "comparison": {
-                "key_fields": ["id"]
+                "key_fields": ["product_id"] # Исправлено: было ["id"]
             }
         }
         self.config_manager.set_config(default_config)
@@ -419,7 +457,7 @@ class DataTransferApp:
         if db_type == "mysql":
             source = MySqlDataSource(connection_params)
         if db_type == "sql":
-            source = MySqlDataSource(connection_params)
+            source = SQLDataSource(connection_params)
         if db_type == "csv":
             source = CSVDataSource(connection_params)
 
