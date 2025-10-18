@@ -5,7 +5,7 @@ import json
 import logging  # Добавляем импорт модуля logging
 from config_manager import ConfigManager
 from data_transfer import DataTransfer
-from data_sources import SQLDataSource, MySqlDataSource
+from data_sources import SQLDataSource, MySqlDataSource, CSVDataSource
 
 # todo сделать пользовательское форматирование , после выборки и перед изменениями
 
@@ -214,7 +214,7 @@ class DataTransferApp:
             "source": {
                 "type": "csv",
                 "connection_params": {
-                    "path": ""
+                    "path": "test.csv"
                 },
                 "query": "test.csv",
                 "columns": ["product_id", "model", "date_added"],
@@ -257,9 +257,10 @@ class DataTransferApp:
         # Создаем экземпляр соответствующего источника данных
         if source_type == "mysql":
             source = MySqlDataSource(connection_params)
-        else:  # sql
+        if source_type == "sql":
             source = SQLDataSource(connection_params)
-
+        if source_type == "csv":
+            source = CSVDataSource(connection_params)
         try:
             source.connect()
             schema = source.get_schema()
@@ -282,18 +283,17 @@ class DataTransferApp:
 
         dest_config = config.get("destination", {})
         dest_type = dest_config.get("type", "")
-        if dest_type not in ["sql", "mysql"]:
-            messagebox.showwarning("Warning", "Schema loading is only supported for SQL destinations")
-            return
+
 
         connection_params = dest_config.get("connection_params", {})
 
         # Создаем экземпляр соответствующего источника данных
         if dest_type == "mysql":
             destination = MySqlDataSource(connection_params)
-        else:  # sql
+        if dest_type == "sql":
             destination = SQLDataSource(connection_params)
-
+        if dest_type == "csv":
+            destination = CSVDataSource(connection_params)
         try:
             destination.connect()
             schema = destination.get_schema()
@@ -412,18 +412,16 @@ class DataTransferApp:
         db_config = config.get(config_key, {})
         db_type = db_config.get("type", "")
 
-        if db_type not in ["sql", "mysql"]:
-            messagebox.showwarning("Warning",
-                                   f"Data loading is only supported for SQL sources. Selected schema: {config_key}")
-            return
 
         connection_params = db_config.get("connection_params", {})
 
         # Создаем экземпляр соответствующего источника данных
         if db_type == "mysql":
             source = MySqlDataSource(connection_params)
-        else:  # sql
-            source = SQLDataSource(connection_params)
+        if db_type == "sql":
+            source = MySqlDataSource(connection_params)
+        if db_type == "csv":
+            source = CSVDataSource(connection_params)
 
         try:
             source.connect()
