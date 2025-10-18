@@ -1,5 +1,8 @@
 # data_sources/sql_source.py
+import re
 import sqlite3
+from datetime import datetime, date
+
 from .base import DataSource
 from typing import Any, Dict, List
 
@@ -146,13 +149,66 @@ class SQLDataSource(DataSource):
         Стандартное форматирование данных после выборки из SQLite
         """
         formatted_data = []
+        # Регулярные выражения для проверки формата даты/времени и даты
+        # Эти же паттерны, что и в CSV
+        datetime_pattern = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
         for row in data:
             formatted_row = {}
             for key, value in row.items():
                 # Приведение типов данных
                 if isinstance(value, bytes):
                     formatted_row[key] = value.decode('utf-8')
+                elif isinstance(value, (datetime, date)): # Если значение уже объект даты/времени
+                    # Оставляем как есть, но можно привести к нужному формату строки, если нужно
+                    # В текущем контексте оставляем объект
+                    formatted_row[key] = value
+                elif isinstance(value, str): # Если значение строка, проверяем на дату/время
+                    stripped_value = value.strip()
+
+                    # Проверка на формат даты и времени: YYYY-MM-DD HH:MM:SS
+                    if datetime_pattern.match(stripped_value):
+                        try:
+                            # Преобразуем строку в datetime объект
+                            parsed_datetime = datetime.strptime(stripped_value, '%Y-%m-%d %H:%M:%S')
+                            # Сохраняем как объект datetime
+                            formatted_row[key] = parsed_datetime
+                            continue  # Переходим к следующему значению
+                        except ValueError:
+                            pass  # Если формат не подошёл, продолжаем проверки
+
+                    # Проверка на формат даты: YYYY-MM-DD
+                    if date_pattern.match(stripped_value):
+                        try:
+                            # Преобразуем строку в date объект
+                            parsed_date = date.fromisoformat(stripped_value)
+                            # Сохраняем как объект date
+                            formatted_row[key] = parsed_date
+                            continue
+                        except ValueError:
+                            pass  # Если формат не подошёл, продолжаем проверки
+
+                    # Попробуем определить числовые значения из строки
+                    try:
+                        # Проверяем, содержит ли строка точку (кандидат на float)
+                        if '.' in stripped_value:
+                            float_val = float(stripped_value)
+                            # округляем до двух знаков
+                            formatted_row[key] = round(float_val, 2)
+                            continue
+                        else:
+                            # Целое число
+                            formatted_row[key] = int(stripped_value)
+                            continue
+                    except ValueError:
+                        # Если не число, оставляем как строку
+                        formatted_row[key] = stripped_value
+                elif isinstance(value, float): # Если значение - число с плавающей точкой (уже не строка)
+                    # Округляем до двух знаков после запятой
+                    formatted_row[key] = round(value, 2)
                 else:
+                    # Если значение не строка, не дата/время, не float, оставляем как есть
                     formatted_row[key] = value
             formatted_data.append(formatted_row)
         return formatted_data

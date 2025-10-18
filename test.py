@@ -48,7 +48,8 @@ def create_test_sqlite_db(db_path: str, table_name: str, columns: List[Dict[str,
         column_defs.append(f"`{name}` {col_type}")
 
     columns_str = ", ".join(column_defs)
-    create_table_query = f"CREATE TABLE IF NOT EXISTS `{table_name}` ({columns_str});"
+    cursor.execute(f"DROP TABLE {table_name}")
+    create_table_query = f"CREATE TABLE `{table_name}` ({columns_str});"
 
     logger.debug(f"Выполнение SQL: {create_table_query}")
     cursor.execute(create_table_query)
@@ -74,7 +75,7 @@ def example_usage():
     columns_schema = [
         {"name": "product_id", "type": "INTEGER"},
         {"name": "model", "type": "TEXT"},
-        {"name": "date_added", "type": "TEXT"}  # Используем TEXT для даты/времени
+        {"name": "date_added", "type": "NUMERIC"}  # Используем TEXT для даты/времени
     ]
 
     # Опционально: тестовые данные
