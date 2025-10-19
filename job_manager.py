@@ -19,7 +19,6 @@ class JobManager:
         self.jobs = config.get("jobs", [])
         self.source_instance = None
         self.destination_instance = None
-        # --- НОВОЕ: Инициализируем атрибуты для хранения итоговых результатов ---
         self.to_insert: List[Any] = []
         self.to_update: List[Any] = []
         self.to_delete: List[Any] = []
@@ -68,12 +67,6 @@ class JobManager:
             logger.info("=== ПРОЦЕСС МНОЖЕСТВЕННОГО ПЕРЕНОСА ДАННЫХ УСПЕШНО ЗАВЕРШЕН ===")
         except Exception as e:
             logger.error(f"=== ПРОЦЕСС МНОЖЕСТВЕННОГО ПЕРЕНОСА ДАННЫХ ЗАВЕРШЕН С ОШИБКОЙ: {e} ===")
-            # Важно: даже при ошибке списки могут быть частично заполнены, если ошибка произошла не сразу
-            # или после выполнения части задач. GUI может использовать эти частичные данные.
-            # Если вы хотите, чтобы при ошибке списки были пустыми, раскомментируйте следующие строки:
-            # self.to_insert = []
-            # self.to_update = []
-            # self.to_delete = []
             raise  # Передаем ошибку выше, чтобы GUI мог её обработать
 
 

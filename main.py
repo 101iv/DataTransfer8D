@@ -14,8 +14,10 @@ import sys
 # Уровень можно установить на DEBUG, если нужно видеть все логи из data_transfer
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+
 class TextHandler(logging.Handler):
     """Класс-обработчик для направления сообщений logging в виджет tkinter Text."""
+
     def __init__(self, text_widget):
         super().__init__()
         self.text_widget = text_widget
@@ -30,10 +32,11 @@ class TextHandler(logging.Handler):
         # Обновляем GUI
         self.text_widget.update_idletasks()
 
+
 # GUI приложение
 class DataTransferApp:
     def __init__(self, root):
-        self.logger = logging.getLogger(__name__) # Создаем логгер для этого класса
+        self.logger = logging.getLogger(__name__)  # Создаем логгер для этого класса
         self.logger.info("Инициализация DataTransferApp")
         self.root = root
         self.root.title("Data Transfer Tool")
@@ -47,6 +50,7 @@ class DataTransferApp:
         # Определите список вкладок: (имя_атрибута_фрейма, текст_вкладки, имя_метода_настройки)
         tabs_config = [
             ("config_frame", "Configuration", "setup_config_tab"),
+            ("transformed_config_frame", "Transformed Config", "setup_transformed_config_tab"),
             ("source_schema_frame", "Source Schema", "setup_source_schema_tab"),
             ("dest_schema_frame", "Destination Schema", "setup_dest_schema_tab"),
             ("table_preview", "Table", "setup_load_data_tab"),
@@ -119,7 +123,6 @@ class DataTransferApp:
             # На всякий случай, если возникнет другая ошибка, также загружаем конфигурацию по умолчанию
             self.new_config()
 
-
     def setup_config_tab(self):
         # Кнопки управления конфигурацией
         btn_frame = ttk.Frame(self.config_frame)
@@ -136,11 +139,84 @@ class DataTransferApp:
         # Примечание: Загрузка начального конфига теперь происходит в load_default_config_at_startup
         # Поэтому вызов self.new_config() здесь больше не нужен, если мы хотим сначала попытаться загрузить default.json
 
+    def setup_transformed_config_tab(self):
+        # Кнопка для трансформации конфига
+        btn_frame = ttk.Frame(self.transformed_config_frame)
+        btn_frame.pack(fill=tk.X, padx=5, pady=5)
 
-    # ... (остальные методы остаются без изменений, включая setup_source_schema_tab, setup_dest_schema_tab,
-    # setup_execution_tab, setup_log_tab, setup_load_data_tab, log_message, load_config, save_config,
-    # new_config, load_source_schema, load_dest_schema, display_schema, load_from_table, load_data,
-    # run_transfer, stop_transfer) ...
+        ttk.Button(btn_frame, text="Transform Config", command=self.transform_config).pack(side=tk.LEFT, padx=2)
+
+        # Панель для отображения трансформированного конфига
+        self.transformed_config_text = scrolledtext.ScrolledText(self.transformed_config_frame, wrap=tk.WORD)
+        self.transformed_config_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+    def transform_config(self):
+        try:
+            # Получаем текущий конфиг из основной вкладки
+            config_content = self.config_text.get(1.0, tk.END)
+            user_config = json.loads(config_content)
+        except json.JSONDecodeError:
+            messagebox.showerror("Error", "Invalid JSON in configuration editor")
+            return
+
+        # Загружаем схемы из источника и приемника
+        try:
+            source_schema = self.load_schema_from_config("source")
+            dest_schema = self.load_schema_from_config("destination")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load schemas: {str(e)}")
+            return
+
+        # Вызываем метод трансформации конфига
+        try:
+            transformed_config = self.config_manager.transform_config(user_config, source_schema, dest_schema)
+
+            # Отображаем трансформированный конфиг в соответствующем текстовом поле
+            self.transformed_config_text.delete(1.0, tk.END)
+            self.transformed_config_text.insert(1.0, json.dumps(transformed_config, indent=2))
+
+            self.log_message("Configuration transformed successfully")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to transform configuration: {str(e)}")
+
+    def load_schema_from_config(self, schema_type):
+        """
+        Вспомогательный метод для загрузки схемы из конфига (источник или приемник).
+
+        Args:
+            schema_type (str): "source" или "destination"
+
+        Returns:
+            dict: Словарь схемы {table_name: [column_list]}
+        """
+        # Получаем конфиг из основной вкладки
+        config_content = self.config_text.get(1.0, tk.END)
+        config = json.loads(config_content)
+
+        # Получаем конфигурацию для указанного типа (source или destination)
+        config_key = "source" if schema_type == "source" else "destination"
+        db_config = config.get(config_key, {})
+        db_type = db_config.get("type", "")
+        connection_params = db_config.get("connection_params", {})
+
+        # Создаем экземпляр соответствующего источника данных
+        if db_type == "mysql":
+            source = MySqlDataSource(connection_params)
+        elif db_type == "sql":
+            source = SQLDataSource(connection_params)
+        elif db_type == "csv":
+            source = CSVDataSource(connection_params)
+        else:
+            raise ValueError(f"Unsupported database type: {db_type}")
+
+        try:
+            source.connect()
+            schema = source.get_schema()
+            source.disconnect()
+            return schema
+        except Exception as e:
+            source.disconnect()  # Убедимся, что соединение закрыто при ошибке
+            raise e
 
     def setup_schema_tab(self, frame_attr, button_text, command):
         """
@@ -312,14 +388,20 @@ class DataTransferApp:
                 "destination_path": ""
             },
             "comparison": {
-                "key_fields": ["product_id"] # Исправлено: было ["id"]
+                "key_fields": ["product_id"]  # Исправлено: было ["id"]
             }
         }
         self.config_manager.set_config(default_config)
         self.config_text.delete(1.0, tk.END)
         self.config_text.insert(1.0, json.dumps(default_config, indent=2))
 
-    def load_source_schema(self):
+    def load_schema(self, schema_type):
+        """
+        Общий метод для загрузки схемы из источника или приемника.
+
+        Args:
+            schema_type (str): "source" или "destination"
+        """
         try:
             config_content = self.config_text.get(1.0, tk.END)
             config = json.loads(config_content)
@@ -327,63 +409,41 @@ class DataTransferApp:
             messagebox.showerror("Error", "Invalid JSON in configuration editor")
             return
 
-        source_config = config.get("source", {})
-        source_type = source_config.get("type", "")
-
-
-        connection_params = source_config.get("connection_params", {})
+        # Получаем конфигурацию для указанного типа (source или destination)
+        config_key = "source" if schema_type == "source" else "destination"
+        db_config = config.get(config_key, {})
+        db_type = db_config.get("type", "")
+        connection_params = db_config.get("connection_params", {})
 
         # Создаем экземпляр соответствующего источника данных
-        if source_type == "mysql":
+        if db_type == "mysql":
             source = MySqlDataSource(connection_params)
-        if source_type == "sql":
+        elif db_type == "sql":
             source = SQLDataSource(connection_params)
-        if source_type == "csv":
+        elif db_type == "csv":
             source = CSVDataSource(connection_params)
+        else:
+            raise ValueError(f"Unsupported database type: {db_type}")
+
         try:
             source.connect()
             schema = source.get_schema()
             source.disconnect()
 
-            # Отображаем схему во вкладке Source Schema
-            self.display_schema(self.source_schema_tree, schema)
+            # Отображаем схему во вкладке Source Schema или Destination Schema
+            tree_widget = self.source_schema_tree if schema_type == "source" else self.dest_schema_tree
+            self.display_schema(tree_widget, schema)
 
-            self.log_message("Source schema loaded successfully")
+            self.log_message(f"{schema_type.capitalize()} schema loaded successfully")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load source schema: {str(e)}")
+            source.disconnect()  # Убедимся, что соединение закрыто при ошибке
+            messagebox.showerror("Error", f"Failed to load {schema_type} schema: {str(e)}")
+
+    def load_source_schema(self):
+        self.load_schema("source")
 
     def load_dest_schema(self):
-        try:
-            config_content = self.config_text.get(1.0, tk.END)
-            config = json.loads(config_content)
-        except json.JSONDecodeError:
-            messagebox.showerror("Error", "Invalid JSON in configuration editor")
-            return
-
-        dest_config = config.get("destination", {})
-        dest_type = dest_config.get("type", "")
-
-
-        connection_params = dest_config.get("connection_params", {})
-
-        # Создаем экземпляр соответствующего источника данных
-        if dest_type == "mysql":
-            destination = MySqlDataSource(connection_params)
-        if dest_type == "sql":
-            destination = SQLDataSource(connection_params)
-        if dest_type == "csv":
-            destination = CSVDataSource(connection_params)
-        try:
-            destination.connect()
-            schema = destination.get_schema()
-            destination.disconnect()
-
-            # Отображаем схему во вкладке Destination Schema
-            self.display_schema(self.dest_schema_tree, schema)
-
-            self.log_message("Destination schema loaded successfully")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load destination schema: {str(e)}")
+        self.load_schema("destination")
 
     def display_schema(self, tree_widget, schema):
         # Очищаем дерево
@@ -490,17 +550,17 @@ class DataTransferApp:
         # Получаем конфигурацию для указанного типа (source или destination)
         db_config = config.get(config_key, {})
         db_type = db_config.get("type", "")
-
-
         connection_params = db_config.get("connection_params", {})
 
         # Создаем экземпляр соответствующего источника данных
         if db_type == "mysql":
             source = MySqlDataSource(connection_params)
-        if db_type == "sql":
+        elif db_type == "sql":
             source = SQLDataSource(connection_params)
-        if db_type == "csv":
+        elif db_type == "csv":
             source = CSVDataSource(connection_params)
+        else:
+            raise ValueError(f"Unsupported database type: {db_type}")
 
         try:
             source.connect()
