@@ -36,7 +36,11 @@ class DataTransfer:
 
         :param type_source: Имя атрибута для хранения экземпляра DataSource ('source' или 'destination').
         """
-        query = self.config[type_source]["query"]
+        query = self.config[type_source].get("query")
+        if not query:
+            tbl =  self.config[type_source].get("table")
+            col = self.config[type_source].get("columns")
+            query = source_instance.build_select_query(tbl,col)
         filters = self.config[type_source].get("filters", {})
 
 

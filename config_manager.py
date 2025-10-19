@@ -100,8 +100,8 @@ class ConfigManager:
         Returns:
             List[str]: Список одинаковых полей
         """
-        source_columns = set(source_schema.get(source_table, []))
-        dest_columns = set(dest_schema.get(dest_table, []))
+        source_columns = set(col["name"] for col in source_schema.get(source_table, []))
+        dest_columns = set(col["name"] for col in dest_schema.get(dest_table, []))
         return list(source_columns.intersection(dest_columns))
 
     def _add_jobs_from_tbl_names(self, table_names: List[str], source_schema: Dict[str, List[str]],
@@ -131,19 +131,11 @@ class ConfigManager:
             job = {
                 "source": {
                     "table": table_name,
-                    "columns": similar_fields,
-                    "filters": {}
+                    "columns": similar_fields
                 },
                 "destination": {
                     "table": table_name,
                     "columns": similar_fields
-                },
-                "transformation": {
-                    "source_path": "",
-                    "destination_path": ""
-                },
-                "comparison": {
-                    "key_fields": []
                 }
             }
             new_jobs.append(job)
@@ -218,7 +210,7 @@ class ConfigManager:
                     if source_table and dest_table:
                         similar_fields = self._get_similar_fields(source_schema, dest_schema, source_table, dest_table)
                         if not similar_fields:
-                            raise ValueError(f"У таблиц '{source_table}' и '{dest_table}' нет одинаковых полей")
+                            raise ValueError(f"У таблиц '{source_table}' и '{dest_table}' нет одинаковых полей или таких таблиц нет")
                         source_info["columns"] = similar_fields
                         dest_info["columns"] = similar_fields
                     else:

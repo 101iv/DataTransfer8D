@@ -1,6 +1,7 @@
 # data_sources/mysql_source.py
 from .base import DataSource
 from typing import Any, Dict, List
+import re
 
 # Импортируем MySQL только при необходимости
 mysql_available = False
@@ -42,7 +43,7 @@ class MySqlDataSource(DataSource):
             raise Exception("Connection not established")
 
         cursor = self.connection.cursor(dictionary=True)
-        if params:
+        if params and not isinstance(params, list):  # params — словарь
             cursor.execute(query, tuple(params.values()) if isinstance(params, dict) else params)
         else:
             cursor.execute(query)
@@ -50,6 +51,17 @@ class MySqlDataSource(DataSource):
         rows = cursor.fetchall()
         cursor.close()
         return [dict(row) for row in rows]
+
+    def build_select_query(self, table_name: str, fields: List[str] = None) -> str:
+        # Формируем список полей
+        if fields:
+            fields_str = ', '.join(fields)
+        else:
+            fields_str = '*'
+
+        query = f"SELECT {fields_str} FROM {table_name}"
+
+        return query
 
     def get_schema(self) -> Dict[str, Any]:
         if not self.connection or not self.connection.is_connected():

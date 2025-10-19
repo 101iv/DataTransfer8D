@@ -133,7 +133,7 @@ class DataTransferApp:
         ttk.Button(btn_frame, text="New Config", command=self.new_config).pack(side=tk.LEFT, padx=2)
 
         # Панель для редактирования конфигурации
-        self.config_text = scrolledtext.ScrolledText(self.config_frame, wrap=tk.WORD)
+        self.config_text = scrolledtext.ScrolledText(self.config_frame, wrap=tk.WORD,state='normal')
         self.config_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Примечание: Загрузка начального конфига теперь происходит в load_default_config_at_startup
@@ -147,7 +147,7 @@ class DataTransferApp:
         ttk.Button(btn_frame, text="Transform Config", command=self.transform_config).pack(side=tk.LEFT, padx=2)
 
         # Панель для отображения трансформированного конфига
-        self.transformed_config_text = scrolledtext.ScrolledText(self.transformed_config_frame, wrap=tk.WORD)
+        self.transformed_config_text = scrolledtext.ScrolledText(self.transformed_config_frame, wrap=tk.WORD,state='normal')
         self.transformed_config_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
     def transform_config(self):
