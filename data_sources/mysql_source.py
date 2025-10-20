@@ -1,24 +1,12 @@
 # data_sources/mysql_source.py
 from .base import DataSource
 from typing import Any, Dict, List
-import re
+import mysql.connector
 
-# Импортируем MySQL только при необходимости
-mysql_available = False
-try:
-    import mysql.connector
-
-    mysql_available = True
-except ImportError:
-    pass
 
 
 class MySqlDataSource(DataSource):
     def __init__(self, connection_params: Dict[str, Any]):
-        if not mysql_available:
-            raise ImportError(
-                "mysql-connector-python is required for MySQL support. Install it with: pip install mysql-connector-python")
-
         self.connection_params = connection_params
         self.connection = None
 
