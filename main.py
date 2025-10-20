@@ -1,8 +1,9 @@
 # main.py
+import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import json
-import logging  # Добавляем импорт модуля logging
+import logging
 from config_manager import ConfigManager
 from job_manager import JobManager
 from data_sources import SQLDataSource, MySqlDataSource, CSVDataSource
@@ -98,7 +99,9 @@ class DataTransferApp:
         Пытается загрузить конфигурацию из файла 'default.json' при запуске приложения.
         Если файл не найден или содержит ошибки, используется конфигурация по умолчанию.
         """
-        default_config_path = "default.json"
+        # Получаем директорию, в которой находится main.py
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        default_config_path = os.path.join(script_dir, 'default.json')
         try:
             # Пытаемся загрузить конфиг из файла default.json
             self.config_manager.load_config(default_config_path)
@@ -651,6 +654,59 @@ class DataTransferApp:
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = DataTransferApp(root)
-    root.mainloop()
+    # Проверяем количество аргументов командной строки
+    if len(sys.argv) > 2:
+        print("Usage: python main.py [config_file_path]", file=sys.stderr)
+        sys.exit(1)
+
+    # Получаем путь к конфигурационному файлу из аргументов командной строки или None
+    config_path_from_args = None
+
+    # Обрабатываем аргументы
+    for arg in sys.argv[1:]:
+        if config_path_from_args is None:
+            config_path_from_args = arg
+        else:
+            # Если указано что-то еще, кроме одного пути
+            print("Usage: python main.py [config_file_path]", file=sys.stderr)
+            sys.exit(1)
+
+    # Проверяем, существует ли указанный файл, если он был передан
+    if config_path_from_args and not os.path.isfile(config_path_from_args):
+        print(f"Error: Configuration file not found: {config_path_from_args}", file=sys.stderr)
+        sys.exit(1)
+
+    # --- Режим выполнения без GUI ---
+    if config_path_from_args:
+        # Создаем ConfigManager, передав ему путь к конфигу
+        # Получаем директорию, в которой находится main.py, на случай, если config_path_from_args относительный
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        absolute_config_path = os.path.abspath(config_path_from_args) # Преобразуем в абсолютный путь
+        config_manager = ConfigManager(config_file=absolute_config_path)
+
+        try:
+            # Загружаем конфигурацию из указанного файла
+            config_manager.load_config(absolute_config_path)
+            config = config_manager.get_config()
+            print(f"Configuration loaded from: {absolute_config_path}")
+        except Exception as e:
+            print(f"Error loading configuration: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        # Создаем и запускаем JobManager
+        try:
+            print("Starting data transfer job...")
+            transfer = JobManager(config)
+            transfer.run()
+            print("Transfer completed successfully.")
+            print(f"- {len(transfer.to_insert)} records inserted")
+            print(f"- {len(transfer.to_update)} records updated")
+            print(f"- {len(transfer.to_delete)} records deleted")
+        except Exception as e:
+            print(f"Transfer failed: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    else:
+        root = tk.Tk()
+        app = DataTransferApp(root)
+        root.mainloop()
