@@ -11,38 +11,55 @@ class ConfigManager:
         self.config_file = config_file
         self.config = {
             "source": {
-                "type": "sql",  # mysql, sql, csv, api
-                "connection_params": {}
+                "type": "sql",  # mysql, sql, csv
+                "connection_params": {  # параметры подключения к mysql-базе
+                    "host": "",
+                    "port": 3306,
+                    "user": "",
+                    "password": "",
+                    "database": "",
+                    "charset": "utf8mb4"
+                }
             },
             "destination": {
-                "type": "sql",
-                "connection_params": {}
+                "type": "csv",
+                "connection_params": {  # параметры подключения к csv, для SQL lite достаточно указать "path"
+                    "path": "test.csv",
+                    "delimiter": ","
+                }
             },
-            "jobs": [
+            "jobs": [ #список заданий, которые программа последовательно выполняет
+                {"tables":  # список одинаковых таблиц в источнике и приемнике, программа берет одинаковые поля
+                     ["талица1", "таблица2", "..."]  # остальные поля не учитываются
+                 },
+
+                # для сложного случая
                 {"source": {
-                    "query": "",  # или table, для csv это путь файла
-                    "columns": [],
-                    "filters": {}
+                    "query": "",  # sql-запрос для сложной выборки, для csv это путь файла
+                    "columns": []
                 },
                     "destination": {
-                        "table": "",  # может быть query для сложной выборки, для csv это путь файла
+                        "table": "",  # может быть query для сложной выборки
                         "columns": []
                     },
                     "transformation": {
-                        "source_path": "",
-                        "destination_path": ""
+                        "source_path": "", # путь для скрипта на Python для трансформации после выборки
+                        "destination_path": "", # то же и для приемника, например "jobs/oc15_to_oc3/oc_currency.py"
+                        "transform_upd_data_patch": "", # путь к файлу для обновления данных после сравнения
+                        "transform_ins_data_patch": "", # то же для данных, полученные для вставки в приемник
+                        "transform_del_data_patch": "", # то же для удаления
                     },
                     "comparison": {
-                        "key_fields": []
+                        "key_fields": [] # ключевые поля, как правило 1 или 2 (пока одинаковые для источника и приемника)
+                                         # todo сделаю в дальнейшем разные поля key_fields
                     }
 
                 },
-                {"source": {  # может быть без фильтров и таблиц
+                {"source": {  # пример без модификаторов
                     "query": "",
                 },
                     "destination": {
-                        "query": "",  # для выборки и сравнения с source
-                        "table": "",  # для обновления полученными данными
+                        "table": "",  # обязательно для приемника, для обновления полученными данными
                         "columns": []
                     },
                 }
@@ -189,7 +206,8 @@ class ConfigManager:
                     source_info["table"] = source_table
                 elif not dest_table:
                     # Если нет dest_table, выдаем ошибку
-                    raise ValueError(f"Должна быть таблица в приемнике для обновления в ней данных. Источник - {source_table} , приемник - {dest_table}")
+                    raise ValueError(
+                        f"Должна быть таблица в приемнике для обновления в ней данных. Источник - {source_table} , приемник - {dest_table}")
 
                 # Проверяем наличие columns в source и destination
                 source_columns = source_info.get("columns")
@@ -210,7 +228,8 @@ class ConfigManager:
                     if source_table and dest_table:
                         similar_fields = self._get_similar_fields(source_schema, dest_schema, source_table, dest_table)
                         if not similar_fields:
-                            raise ValueError(f"У таблиц '{source_table}' и '{dest_table}' нет одинаковых полей или таких таблиц нет")
+                            raise ValueError(
+                                f"У таблиц '{source_table}' и '{dest_table}' нет одинаковых полей или таких таблиц нет")
                         source_info["columns"] = similar_fields
                         dest_info["columns"] = similar_fields
                     else:

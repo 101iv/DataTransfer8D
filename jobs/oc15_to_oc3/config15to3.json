@@ -35,7 +35,7 @@
         ]
       },
       "transformation": {
-        "source_path": "jobs/oc15_to_oc3/user_transformations.py"
+        "source_path": "jobs/oc15_to_oc3/oc_currency.py"
       }
     },
     {"tables": ["oc_address", "oc_attribute", "oc_attribute_description", "oc_attribute_group", "oc_attribute_group_description",
