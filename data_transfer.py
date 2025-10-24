@@ -5,7 +5,6 @@ import os  # Добавлено для проверки существовани
 from typing import Any, Dict, List, Tuple
 from data_sources import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
 
-
 # Настройка логирования для этого модуля
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)  # Создаем логгер для этого файла
@@ -28,7 +27,32 @@ class DataTransfer:
         self.to_update = []
         self.to_delete = []
 
+    def _get_comparison_key_fields(self) -> Tuple[List[str], List[str]]:
+        """
+        Получает ключевые поля для сравнения из конфигурации текущего задания (self.config).
 
+        :return: Кортеж (source_key_fields, destination_key_fields)
+        """
+        # Ищем ключи в разделе comparison задания (self.config)
+        comparison_config = self.config.get("comparison", {})
+        source_key_fields = comparison_config.get("source_key_fields", [])
+        destination_key_fields = comparison_config.get("destination_key_fields", [])
+
+        # Если в comparison не заданы ключи, проверяем разделы source и destination
+        if not source_key_fields:
+            source_key_fields = self.config.get("source", {}).get("key_fields", [])
+        if not destination_key_fields:
+            destination_key_fields = self.config.get("destination", {}).get("key_fields", [])
+
+        # Если старые ключи 'key_fields' в comparison всё ещё определены, используем их как fallback
+        # для обратной совместимости, если новые ключи не заданы
+        old_key_fields = comparison_config.get("key_fields", [])
+        if not source_key_fields:
+            source_key_fields = old_key_fields
+        if not destination_key_fields:
+            destination_key_fields = old_key_fields
+
+        return source_key_fields, destination_key_fields
 
     def _process_data(self, type_source: str, source_instance) -> None:
         """
@@ -38,11 +62,10 @@ class DataTransfer:
         """
         query = self.config[type_source].get("query")
         if not query:
-            tbl =  self.config[type_source].get("table")
+            tbl = self.config[type_source].get("table")
             col = self.config[type_source].get("columns")
-            query = source_instance.build_select_query(tbl,col)
+            query = source_instance.build_select_query(tbl, col)
         filters = self.config[type_source].get("filters", {})
-
 
         # Загрузка данных
         logger.debug(f"Загрузка данных из {type_source}...")
@@ -65,7 +88,6 @@ class DataTransfer:
         # Загружаем и форматируем данные из приемника
         self._process_data("destination", self.destination)
         logger.info("Завершена загрузка данных")
-
 
     def modify_data_after_fetch(self):
         logger.info("Начало модификации данных после выборки")
@@ -103,14 +125,16 @@ class DataTransfer:
 
     def compare_data(self):
         logger.info("Начало сравнения данных")
-        key_fields = self.config["comparison"]["key_fields"]
-        logger.debug(f"Поля для сравнения (ключи): {key_fields}")
+
+        source_key_fields, destination_key_fields = self._get_comparison_key_fields()
+        logger.debug(f"Поля для сравнения (ключи источника): {source_key_fields}")
+        logger.debug(f"Поля для сравнения (ключи приемника): {destination_key_fields}")
 
         # Создаем словари для быстрого поиска
         logger.debug("Создание словаря для исходных данных...")
-        source_dict = {self.get_key(row, key_fields): row for row in self.formatted_source}
+        source_dict = {self.get_key(row, source_key_fields): row for row in self.formatted_source}
         logger.debug("Создание словаря для данных приемника...")
-        dest_dict = {self.get_key(row, key_fields): row for row in self.formatted_destination}
+        dest_dict = {self.get_key(row, destination_key_fields): row for row in self.formatted_destination}
 
         # Определяем, что нужно вставить
         logger.debug("Определение записей для вставки...")
@@ -201,12 +225,12 @@ class DataTransfer:
         # Трансформация данных для вставки
         if self.to_insert:
             self._apply_transform('transform_ins_data_patch', 'to_insert', 'transform_ins_data',
-                              additional_args=[self.formatted_source, self.formatted_destination])
+                                  additional_args=[self.formatted_source, self.formatted_destination])
 
         # Трансформация данных для удаления
         if self.to_delete:
             self._apply_transform('transform_del_data_patch', 'to_delete', 'transform_del_data',
-                              additional_args=[self.formatted_source, self.formatted_destination])
+                                  additional_args=[self.formatted_source, self.formatted_destination])
 
         logger.info("Модификация данных после сравнения завершена")
 
@@ -234,7 +258,9 @@ class DataTransfer:
             # Обновляем существующие записи
             logger.info(f"Обновление {len(self.to_update)} существующих записей...")
             if self.to_update:
-                destination_instance.update_data(self.to_update, self.config["comparison"]["key_fields"],
+                # Используем ключевые поля из приемника для обновления
+                _, destination_key_fields = self._get_comparison_key_fields()
+                destination_instance.update_data(self.to_update, destination_key_fields,
                                                  table_name)  # Используем новый метод для всех типов
                 logger.info(f"Обновление завершено. Всего обновлено: {len(self.to_update)}")
             else:
@@ -243,7 +269,9 @@ class DataTransfer:
             # Удаляем записи
             logger.info(f"Удаление {len(self.to_delete)} записей...")
             if self.to_delete:
-                destination_instance.delete_data(self.to_delete, self.config["comparison"]["key_fields"],
+                # Используем ключевые поля из приемника для удаления
+                _, destination_key_fields = self._get_comparison_key_fields()
+                destination_instance.delete_data(self.to_delete, destination_key_fields,
                                                  table_name)  # Используем новый метод для всех типов
                 logger.info(f"Удаление завершено. Всего удалено: {len(self.to_delete)}")
             else:

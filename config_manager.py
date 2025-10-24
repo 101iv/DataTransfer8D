@@ -28,7 +28,7 @@ class ConfigManager:
                     "delimiter": ","
                 }
             },
-            "jobs": [ #список заданий, которые программа последовательно выполняет
+            "jobs": [  # список заданий, которые программа последовательно выполняет
                 {"tables":  # список одинаковых таблиц в источнике и приемнике, программа берет одинаковые поля
                      ["талица1", "таблица2", "..."]  # остальные поля не учитываются
                  },
@@ -36,32 +36,38 @@ class ConfigManager:
                 # для сложного случая
                 {"source": {
                     "query": "",  # sql-запрос для сложной выборки, для csv это путь файла
-                    "columns": []
+                    "columns": [],
+                    "key_fields": []  # ключевые поля теперь могут быть разные для источника и приемника
+
                 },
                     "destination": {
                         "table": "",  # может быть query для сложной выборки
-                        "columns": []
+                        "columns": [],
+                        "key_fields": []
                     },
                     "transformation": {
-                        "source_path": "", # путь для скрипта на Python для трансформации после выборки
-                        "destination_path": "", # то же и для приемника, например "jobs/oc15_to_oc3/oc_currency.py"
-                        "transform_upd_data_patch": "", # путь к файлу для обновления данных после сравнения
-                        "transform_ins_data_patch": "", # то же для данных, полученные для вставки в приемник
-                        "transform_del_data_patch": "", # то же для удаления
+                        "source_path": "",  # путь для скрипта на Python для трансформации после выборки
+                        "destination_path": "",  # то же и для приемника, например "jobs/oc15_to_oc3/oc_currency.py"
+                        "transform_upd_data_patch": "",  # путь к файлу для обновления данных после сравнения
+                        "transform_ins_data_patch": "",  # то же для данных, полученные для вставки в приемник
+                        "transform_del_data_patch": "",  # то же для удаления
                     },
                     "comparison": {
-                        "key_fields": [] # ключевые поля, как правило 1 или 2 (пока одинаковые для источника и приемника)
-                                         # todo сделаю в дальнейшем разные поля key_fields
+                        "key_fields": [] # ключевые поля могут быть одинаковыми
                     }
 
                 },
-                {"source": {  # пример без модификаторов
+                {"source": {  # пример job без модификаторов
                     "query": "",
-                },
+                    },
                     "destination": {
                         "table": "",  # обязательно для приемника, для обновления полученными данными
                         "columns": []
                     },
+                    "comparison": {
+                        "source_key_fields": [], # такое определение ключей приоритет для программы
+                        "destination_key_fields": []
+                    }
                 }
             ]
 
@@ -103,7 +109,8 @@ class ConfigManager:
     def set_config(self, new_config: Dict[str, Any]):
         self.config = new_config
 
-    def _get_similar_fields(self, source_schema: Dict[str, List[Dict[str, Any]]], dest_schema: Dict[str, List[Dict[str, Any]]],
+    def _get_similar_fields(self, source_schema: Dict[str, List[Dict[str, Any]]],
+                            dest_schema: Dict[str, List[Dict[str, Any]]],
                             source_table: str, dest_table: str) -> List[str]:
         """
         Вспомогательный метод для получения списка одинаковых полей из двух таблиц
@@ -148,11 +155,13 @@ class ConfigManager:
             job = {
                 "source": {
                     "table": table_name,
-                    "columns": similar_fields
+                    "columns": similar_fields,
+                    "key_fields": []  # todo Необходимо реализовать поиск из схемы source_schema ключей
                 },
                 "destination": {
                     "table": table_name,
-                    "columns": similar_fields
+                    "columns": similar_fields,
+                    "key_fields": []  # todo Необходимо реализовать поиск из схемы dest_schema ключей
                 }
             }
             new_jobs.append(job)
@@ -186,5 +195,11 @@ class ConfigManager:
                 transformed_jobs.extend(new_jobs)
             else:
                 # Обрабатываем обычный job
-                source_info = job.get("source", {})
-                dest_info
+                # Оставляем job без изменений, он уже содержит source, destination и transformation
+                # Ключи сравнения будут искаться внутри DataTransfer по мере выполнения конкретного job
+                transformed_jobs.append(job)
+
+        # Заменяем jobs в новом конфиге
+        new_config["jobs"] = transformed_jobs
+
+        return new_config

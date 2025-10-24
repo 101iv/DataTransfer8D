@@ -391,7 +391,7 @@ class DataTransferApp:
                 "destination_path": ""
             },
             "comparison": {
-                "key_fields": ["product_id"]  # Исправлено: было ["id"]
+                "key_fields": ["product_id"]
             }
         }
         self.config_manager.set_config(default_config)
