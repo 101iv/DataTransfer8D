@@ -135,13 +135,10 @@
 С помощью pip скачайте и установите библиотеки из requirements.txt
 
 ### Запуск в windows из виртуальной среды
-
 В архиве [8D DataTransfer py3.12-64bit.rar](8D%20DataTransfer%20py3.12-64bit.rar)
-лежит все необходимое для быстрого запуска.
-Создайте ярлык на рабочем столе для файла
-`Путь_К_Папке\8D DataTransfer py3.12-64bit\.venv\Scripts\pythonw.exe`
-В свойствах ярлыка в поле "объект" измените
-`"Путь_К_Папке\8D DataTransfer py3.12-64bit\.venv\Scripts\pythonw.exe" "Путь_К_Папке\8D DataTransfer py3.12-64bit\main.py"` 
+лежит все необходимое для быстрого запуска в windows:
+файл run.but запускает виртуальную среду и основной файл программы 
 
 ### запуск через консоль с готовым конфигом
-`& "D:\Py\work\8D DataTransfer py3.12-64bit\.venv\Scripts\python.exe" "D:\Py\work\8D DataTransfer py3.12-64bit\main.py" "D:\Py\work\8D DataTransfer py3.12-64bit\jobs\oc15_to_oc3\config15to3.json"`
+активируйте виртуальную среду, затем:
+`python "Путь_К_Папке\main.py" "Путь_К_Конфигурации"`
