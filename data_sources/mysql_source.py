@@ -65,7 +65,7 @@ class MySqlDataSource(DataSource):
         for table in tables:
             table_name = list(table.values())[0]  # MySQL возвращает результат в виде {'Tables_in_db': 'table_name'}
 
-            # Получаем информацию о колонках
+            # Получаем информацию о колонках, включая тип ключа
             cursor.execute(f"DESCRIBE `{table_name}`")
             columns = cursor.fetchall()
 
@@ -75,7 +75,8 @@ class MySqlDataSource(DataSource):
                     "type": col["Type"],
                     "not_null": col["Null"] == "NO",
                     "default": col["Default"],
-                    "extra": col["Extra"]
+                    "extra": col["Extra"],
+                    "primary_key": col["Key"] == "PRI"  # Проверяем, является ли колонка первичным ключом
                 }
                 for col in columns
             ]

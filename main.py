@@ -1,4 +1,3 @@
-# main.py
 import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
@@ -43,6 +42,12 @@ class DataTransferApp:
         self.root.title("Data Transfer Tool")
         self.root.geometry("1000x700")
         self.config_manager = ConfigManager()
+
+        # --- Добавляем стиль для PK ---
+        self.style = ttk.Style()
+        self.style.configure("PK.TTreeview", font=('TkDefaultFont', 10, 'bold'))
+        # Цвет текста для PK можно настроить, но в ttk Treeview это сложнее, чем в обычном Text
+        # Вместо этого, используем теги для выделения
 
         # Создаем вкладки
         self.notebook = ttk.Notebook(root)
@@ -237,7 +242,7 @@ class DataTransferApp:
         btn_frame = ttk.Frame(frame)
         btn_frame.pack(fill=tk.X, padx=5, pady=5)
         ttk.Button(btn_frame, text=button_text, command=command).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Load from Table", command=self.load_from_table).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="View Table", command=self.load_from_table).pack(side=tk.LEFT, padx=2)
 
         # Дерево для отображения схемы
         tree = ttk.Treeview(frame)
@@ -253,6 +258,9 @@ class DataTransferApp:
         tree.heading("#0", text="Name")
         tree.heading("Type", text="Type")
         tree.heading("Details", text="Details")
+
+        # --- Добавляем тег для PK ---
+        tree.tag_configure("pk", font=('TkDefaultFont', 10, 'bold'), foreground="blue")
 
         return tree
 
@@ -368,32 +376,7 @@ class DataTransferApp:
             messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
 
     def new_config(self):
-        default_config = {
-            "source": {
-                "type": "csv",
-                "connection_params": {
-                    "path": "test.csv"
-                },
-                "query": "test.csv",
-                "columns": ["product_id", "model", "date_added"],
-                "filters": {}
-            },
-            "destination": {
-                "type": "sql",
-                "connection_params": {
-                    "path": "test.db"
-                },
-                "table": "oc_product",
-                "columns": ["product_id", "model", "date_added"]
-            },
-            "transformation": {
-                "source_path": "",
-                "destination_path": ""
-            },
-            "comparison": {
-                "key_fields": ["product_id"]
-            }
-        }
+        default_config = self.config_manager.new_config
         self.config_manager.set_config(default_config)
         self.config_text.delete(1.0, tk.END)
         self.config_text.insert(1.0, json.dumps(default_config, indent=2))
@@ -473,11 +456,17 @@ class DataTransferApp:
 
                 extra_str = ", ".join(extra_info) if extra_info else ""
 
+                # --- Определяем тег для колонки ---
+                tags = ()
+                if col_info.get("primary_key"):
+                    tags = ("pk",)
+
                 tree_widget.insert(
                     table_id,
                     "end",
                     text=col_name,
-                    values=("Column", f"{col_type} {extra_str}".strip())
+                    values=("Column", f"{col_type} {extra_str}".strip()),
+                    tags=tags # --- Применяем тег ---
                 )
 
     def load_from_table(self):

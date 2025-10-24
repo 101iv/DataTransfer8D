@@ -9,7 +9,8 @@ import tkinter.filedialog as filedialog
 class ConfigManager:
     def __init__(self, config_file: str = None):
         self.config_file = config_file
-        self.config = {
+        self.config = {}
+        self.new_config = {
             "source": {
                 "type": "sql",  # mysql, sql, csv
                 "connection_params": {  # параметры подключения к mysql-базе
@@ -30,7 +31,7 @@ class ConfigManager:
             },
             "jobs": [  # список заданий, которые программа последовательно выполняет
                 {"tables":  # список одинаковых таблиц в источнике и приемнике, программа берет одинаковые поля
-                     ["талица1", "таблица2", "..."]  # остальные поля не учитываются
+                     ["table1", "table2", "..."]  # остальные поля не учитываются
                  },
 
                 # для сложного случая
@@ -128,6 +129,24 @@ class ConfigManager:
         dest_columns = set(col["name"] for col in dest_schema.get(dest_table, []))
         return list(source_columns.intersection(dest_columns))
 
+    def _get_primary_key_fields(self, schema: Dict[str, List[Dict[str, Any]]], table_name: str) -> List[str]:
+        """
+        Вспомогательный метод для получения списка первичных ключей из схемы таблицы
+
+        Args:
+            schema: Словарь схемы {table_name: [column_info_dict, ...]}
+            table_name: Имя таблицы
+
+        Returns:
+            List[str]: Список полей, являющихся первичным ключом (PK)
+        """
+        primary_keys = []
+        table_schema = schema.get(table_name, [])
+        for col_info in table_schema:
+            if col_info.get("primary_key", False):  # Предполагаем, что схема уже содержит признак PK
+                primary_keys.append(col_info["name"])
+        return primary_keys
+
     def _add_jobs_from_tbl_names(self, table_names: List[str], source_schema: Dict[str, List[Dict[str, Any]]],
                                  dest_schema: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
         """
@@ -151,17 +170,21 @@ class ConfigManager:
                 table_name
             )
 
+            # Получаем ключевые поля из схем
+            source_primary_keys = self._get_primary_key_fields(source_schema, table_name)
+            dest_primary_keys = self._get_primary_key_fields(dest_schema, table_name)
+
             # Создаем новое задание
             job = {
                 "source": {
                     "table": table_name,
                     "columns": similar_fields,
-                    "key_fields": []  # todo Необходимо реализовать поиск из схемы source_schema ключей
+                    "key_fields": source_primary_keys
                 },
                 "destination": {
                     "table": table_name,
                     "columns": similar_fields,
-                    "key_fields": []  # todo Необходимо реализовать поиск из схемы dest_schema ключей
+                    "key_fields": dest_primary_keys
                 }
             }
             new_jobs.append(job)

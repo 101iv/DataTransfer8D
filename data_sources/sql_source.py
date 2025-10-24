@@ -46,8 +46,13 @@ class SQLDataSource(DataSource):
             cursor.execute(f"PRAGMA table_info({table_name})")
             columns = cursor.fetchall()
             schema[table_name] = [
-                {"name": col[1], "type": col[2], "not_null": bool(col[3]), "default": col[4],
-                 "primary_key": bool(col[5])}
+                {
+                    "name": col[1],
+                    "type": col[2],
+                    "not_null": bool(col[3]),
+                    "default": col[4],
+                    "primary_key": bool(col[5])  # Используем значение из PRAGMA table_info
+                }
                 for col in columns
             ]
 
