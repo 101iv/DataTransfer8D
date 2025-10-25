@@ -3,6 +3,7 @@ import json
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
     QTextEdit, QPushButton, QFrame, QProgressBar, QLabel,
+    QSizePolicy, QSpacerItem,
     QFileDialog, QMessageBox, QTreeWidget, QTreeWidgetItem, QHeaderView,
     QGroupBox, QSplitter, QSizePolicy
 )
@@ -14,18 +15,19 @@ class DataTransferGUI(QMainWindow):
     """
     Класс, отвечающий за GUI.
     """
+
     def __init__(self, logic):
         super().__init__()
         self.logic = logic
         self.selected_table = {"source": None, "destination": None}
-        self.selected_schema_type = "source" # По умолчанию источник
+        self.selected_schema_type = "source"  # По умолчанию источник
 
         self.setWindowTitle("Data Transfer Tool")
         self.setGeometry(100, 100, 1200, 800)
 
         # Установка шрифта для всего окна
         font = QFont()
-        font.setPointSize(10) # Увеличенный размер шрифта
+        font.setPointSize(10)  # Увеличенный размер шрифта
         self.setFont(font)
 
         # Центральный виджет
@@ -53,8 +55,11 @@ class DataTransferGUI(QMainWindow):
         """Создает кнопку с общим стилем."""
         btn = QPushButton(text)
         btn.clicked.connect(callback)
-        btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed) # Фиксированный размер
+        # Установка фиксированного размера
+        btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         btn.setFixedWidth(150) # Установка фиксированной ширины
+        # Можно также установить фиксированную высоту, если нужно
+        btn.setFixedHeight(30)
         return btn
 
     def init_config_tab(self):
@@ -69,6 +74,7 @@ class DataTransferGUI(QMainWindow):
         btn_layout.addWidget(self.load_config_btn)
         btn_layout.addWidget(self.save_config_btn)
         btn_layout.addWidget(self.new_config_btn)
+        btn_layout.addStretch(1)
         layout.addLayout(btn_layout)
 
         self.config_text = QTextEdit()
@@ -83,6 +89,7 @@ class DataTransferGUI(QMainWindow):
         btn_layout = QHBoxLayout()
         self.transform_config_btn = self.create_standard_button("Transform Config", self.transform_config)
         btn_layout.addWidget(self.transform_config_btn)
+        btn_layout.addStretch(1)
         layout.addLayout(btn_layout)
 
         self.transformed_config_text = QTextEdit()
@@ -95,12 +102,15 @@ class DataTransferGUI(QMainWindow):
         layout = QVBoxLayout(self.source_schema_frame)
 
         btn_layout = QHBoxLayout()
-        self.load_source_schema_btn = self.create_standard_button("Load Source Schema", lambda: self.load_schema("source"))
+        self.load_source_schema_btn = self.create_standard_button("Load Source Schema",
+                                                                  lambda: self.load_schema("source"))
         self.view_table_btn = self.create_standard_button("View Table", self.load_from_table)
-        self.save_source_schema_btn = self.create_standard_button("Save Schema to JSON", lambda: self.save_schema_to_json("source"))
+        self.save_source_schema_btn = self.create_standard_button("Save Schema to JSON",
+                                                                  lambda: self.save_schema_to_json("source"))
         btn_layout.addWidget(self.load_source_schema_btn)
         btn_layout.addWidget(self.view_table_btn)
         btn_layout.addWidget(self.save_source_schema_btn)
+        btn_layout.addStretch(1)
         layout.addLayout(btn_layout)
 
         self.source_schema_tree = QTreeWidget()
@@ -115,12 +125,15 @@ class DataTransferGUI(QMainWindow):
         layout = QVBoxLayout(self.dest_schema_frame)
 
         btn_layout = QHBoxLayout()
-        self.load_dest_schema_btn = self.create_standard_button("Load Destination Schema", lambda: self.load_schema("destination"))
+        self.load_dest_schema_btn = self.create_standard_button("Load Destination Schema",
+                                                                lambda: self.load_schema("destination"))
         self.view_table_btn_dest = self.create_standard_button("View Table", self.load_from_table)
-        self.save_dest_schema_btn = self.create_standard_button("Save Schema to JSON", lambda: self.save_schema_to_json("destination"))
+        self.save_dest_schema_btn = self.create_standard_button("Save Schema to JSON",
+                                                                lambda: self.save_schema_to_json("destination"))
         btn_layout.addWidget(self.load_dest_schema_btn)
         btn_layout.addWidget(self.view_table_btn_dest)
         btn_layout.addWidget(self.save_dest_schema_btn)
+        btn_layout.addStretch(1)
         layout.addLayout(btn_layout)
 
         self.dest_schema_tree = QTreeWidget()
@@ -137,6 +150,7 @@ class DataTransferGUI(QMainWindow):
         btn_layout = QHBoxLayout()
         self.table_name_label = QLabel("Table Name:")
         btn_layout.addWidget(self.table_name_label)
+        btn_layout.addStretch(1)
 
         self.load_table_data_btn = self.create_standard_button("Load Table Data", self.load_table_data_from_name)
         self.save_table_data_btn = self.create_standard_button("Save Table to JSON", self.save_table_data_to_json)
@@ -216,7 +230,8 @@ class DataTransferGUI(QMainWindow):
             self.config_text.setPlainText(json.dumps(self.logic.get_config(), indent=2))
 
     def load_config(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Configuration File", "", "JSON files (*.json);;All files (*)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Configuration File", "",
+                                                   "JSON files (*.json);;All files (*)")
         if file_path:
             if self.logic.load_config_from_file(file_path):
                 self.config_text.setPlainText(json.dumps(self.logic.get_config(), indent=2))
@@ -226,7 +241,8 @@ class DataTransferGUI(QMainWindow):
             config_content = self.config_text.toPlainText()
             config = json.loads(config_content)
             self.logic.set_config(config)
-            file_path, _ = QFileDialog.getSaveFileName(self, "Save Configuration File", "", "JSON files (*.json);;All files (*)")
+            file_path, _ = QFileDialog.getSaveFileName(self, "Save Configuration File", "",
+                                                       "JSON files (*.json);;All files (*)")
             if file_path:
                 self.logic.save_config_to_file(file_path)
         except json.JSONDecodeError:
@@ -242,35 +258,13 @@ class DataTransferGUI(QMainWindow):
         self.logic.load_schema(schema_type)
 
     def save_schema_to_json(self, schema_type):
+        """Вызывает метод логики для сохранения схемы в JSON."""
+        # Сначала получаем путь к файлу через QFileDialog
         file_path, _ = QFileDialog.getSaveFileName(self, f"Save {schema_type} Schema to JSON", "", "JSON files (*.json);;All files (*)")
         if file_path:
-            # Получаем схему из соответствующего дерева
-            tree_widget = self.source_schema_tree if schema_type == "source" else self.dest_schema_tree
-            schema = self._tree_to_schema_dict(tree_widget)
-            if schema:
-                self.logic.save_schema_to_json(schema, file_path)
+            # Вызываем метод логики, передав ему тип схемы и путь к файлу
+            self.logic.save_schema_to_json(schema_type, file_path)
 
-    def _tree_to_schema_dict(self, tree_widget):
-        """Преобразует содержимое QTreeWidget в словарь схемы."""
-        schema = {}
-        root_items = [tree_widget.topLevelItem(i) for i in range(tree_widget.topLevelItemCount())]
-        for table_item in root_items:
-            table_name = table_item.text(0)
-            columns = []
-            for i in range(table_item.childCount()):
-                col_item = table_item.child(i)
-                col_name = col_item.text(0)
-                col_details = col_item.text(2) # Тип и детали
-                # Простая логика для извлечения типа и PK из строки деталей
-                # Это может быть улучшено в зависимости от формата строки
-                parts = col_details.split()
-                col_type = parts[0] if parts else "UNKNOWN"
-                is_pk = "PK" in col_details
-                # Для полноты, нужно хранить исходную информацию о схеме
-                # Здесь мы воссоздаем упрощенную структуру
-                columns.append({"name": col_name, "type": col_type, "primary_key": is_pk})
-            schema[table_name] = columns
-        return schema
 
     def display_schema(self, schema, schema_type):
         tree_widget = self.source_schema_tree if schema_type == "source" else self.dest_schema_tree
@@ -317,9 +311,9 @@ class DataTransferGUI(QMainWindow):
         item = selected_items[0]
         # Проверяем, является ли элемент таблицей
         parent_item = item.parent()
-        if parent_item: # Это колонка
+        if parent_item:  # Это колонка
             table_name = parent_item.text(0)
-        else: # Это таблица
+        else:  # Это таблица
             table_name = item.text(0)
 
         self.selected_table[schema_type] = table_name
@@ -355,7 +349,8 @@ class DataTransferGUI(QMainWindow):
             return
 
     def save_table_data_to_json(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Table Data to JSON", "", "JSON files (*.json);;All files (*)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Table Data to JSON", "",
+                                                   "JSON files (*.json);;All files (*)")
         if file_path:
             # Получаем данные из self.data_tree
             # Это немного сложнее, так как QTreeWidget не хранит исходные данные напрямую
@@ -369,15 +364,14 @@ class DataTransferGUI(QMainWindow):
             # Псевдокод: rows, columns = self.logic.get_last_loaded_data()
             # Пока используем атрибут GUI
             if hasattr(self, '_last_loaded_rows') and hasattr(self, '_last_loaded_columns'):
-                 self.logic.save_data_to_json(self._last_loaded_rows, self._last_loaded_columns, file_path)
+                self.logic.save_data_to_json(self._last_loaded_rows, self._last_loaded_columns, file_path)
             else:
-                 QMessageBox.warning(self, "Warning", "No table data loaded to save.")
+                QMessageBox.warning(self, "Warning", "No table data loaded to save.")
 
     def set_last_loaded_data(self, rows, columns):
         """Сохраняет последние загруженные данные для возможного сохранения."""
         self._last_loaded_rows = rows
         self._last_loaded_columns = columns
-
 
     def transform_config(self):
         transformed_config = self.logic.transform_config()
@@ -385,7 +379,7 @@ class DataTransferGUI(QMainWindow):
             self.transformed_config_text.setPlainText(json.dumps(transformed_config, indent=2))
 
     def run_transfer(self):
-        config = self.logic.run_transfer() # Подготовка конфига
+        config = self.logic.run_transfer()  # Подготовка конфига
         if config:
             from transfer_worker import TransferWorker
             self.transfer_worker = TransferWorker(config)
@@ -400,8 +394,8 @@ class DataTransferGUI(QMainWindow):
         # Пока просто сбросим прогресс
         self.logic.log_message_signal.emit("Transfer stopped by user (not implemented in JobManager)")
         if hasattr(self, 'transfer_worker') and self.transfer_worker.isRunning():
-             self.transfer_worker.terminate() # Это не рекомендуется, но для демонстрации
-             self.transfer_worker.wait()
+            self.transfer_worker.terminate()  # Это не рекомендуется, но для демонстрации
+            self.transfer_worker.wait()
         self.progress.setValue(0)
 
     def on_transfer_finished(self, inserted, updated, deleted, status):
@@ -410,8 +404,9 @@ class DataTransferGUI(QMainWindow):
         self.delete_count_label.setText(f"Records to Delete: {deleted}")
 
         if status == "completed":
-            self.result_text.setPlainText(f"Transfer completed successfully:\n- {inserted} records inserted\n- {updated} records updated\n- {deleted} records deleted\n")
-        else: # failed
+            self.result_text.setPlainText(
+                f"Transfer completed successfully:\n- {inserted} records inserted\n- {updated} records updated\n- {deleted} records deleted\n")
+        else:  # failed
             self.result_text.setPlainText(f"Transfer failed: {status}")
 
     def append_log(self, message):

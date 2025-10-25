@@ -60,12 +60,13 @@ class DataTransfer:
 
         :param type_source: Имя атрибута для хранения экземпляра DataSource ('source' или 'destination').
         """
-        query = self.config[type_source].get("query")
+        query_config = self.config.get(type_source, {})
+        query = query_config.get("query", None)
         if not query:
-            tbl = self.config[type_source].get("table")
-            col = self.config[type_source].get("columns")
+            tbl = query_config.get("table")
+            col = query_config.get("columns")
             query = source_instance.build_select_query(tbl, col)
-        filters = self.config[type_source].get("filters", {})
+        filters = query_config.get("filters", {})
 
         # Загрузка данных
         logger.debug(f"Загрузка данных из {type_source}...")
@@ -82,7 +83,7 @@ class DataTransfer:
         setattr(self, "formatted_" + type_source, formatted_data)
 
     def fetch_data(self):
-        logger.info("Создаём и подключаем источники данных")
+        logger.info("Получаем и форматируем данные")
         # Загружаем и форматируем данные из источника
         self._process_data("source", self.source)
         # Загружаем и форматируем данные из приемника
@@ -90,16 +91,20 @@ class DataTransfer:
         logger.info("Завершена загрузка данных")
 
     def modify_data_after_fetch(self):
-        logger.info("Начало модификации данных после выборки")
-        logger.debug(f"Конфигурация трансформации: {self.config['transformation']}")
+        config_mod = self.config.get('transformation', None)
+        if config_mod:
+            logger.info("Начало модификации данных после выборки")
+            logger.debug(f"Конфигурация трансформации: {config_mod}")
 
-        # Трансформация исходных данных
-        self._apply_transform('source_path', 'formatted_source', 'transform_source')
+            # Трансформация исходных данных
+            self._apply_transform('source_path', 'formatted_source', 'transform_source')
 
-        # Трансформация данных приемника
-        self._apply_transform('destination_path', 'formatted_destination', 'transform_destination')
+            # Трансформация данных приемника
+            self._apply_transform('destination_path', 'formatted_destination', 'transform_destination')
 
-        logger.info("Модификация данных после выборки завершена")
+            logger.info("Модификация данных после выборки завершена")
+        else:
+            logger.debug(f"Трансформация после выборки не нужна")
 
     def load_transform_function(self, file_path: str, transform_func_name):
         # Загружаем функцию трансформации из файла
@@ -194,53 +199,63 @@ class DataTransfer:
         :param transform_func_name: Имя функции трансформации в файле
         :param additional_args: Дополнительные аргументы, передаваемые в функцию (опционально)
         """
-        transformation_config = self.config["transformation"]
-        path = transformation_config.get(path_key)
-        if path:
-            logger.debug(f"Загрузка трансформации: функция {transform_func_name} для {data_attr_name} из: {path}")
-            transform_func = self.load_transform_function(path, transform_func_name)
-            if transform_func:
-                logger.debug(f"Функция {transform_func_name} для {data_attr_name} загружена, применяем...")
-                current_data = getattr(self, data_attr_name)
-                # Подготовка аргументов для вызова функции
-                args = [current_data]
-                if additional_args:
-                    args.extend(additional_args)
-                transformed_data = transform_func(*args)
-                setattr(self, data_attr_name, transformed_data)
-                logger.info(
-                    f"Трансформация {transform_func_name} для {data_attr_name} применена. Результат: {len(transformed_data)} записей.")
+        transformation_config = self.config.get("transformation", {})
+        if transformation_config:
+            logger.debug(f"Трансформация доступна в конфигурации")
+            path = transformation_config.get(path_key)
+            if path:
+                logger.debug(f"Загрузка трансформации: функция {transform_func_name} для {data_attr_name} из: {path}")
+                transform_func = self.load_transform_function(path, transform_func_name)
+                if transform_func:
+                    logger.debug(f"Функция {transform_func_name} для {data_attr_name} загружена, применяем...")
+                    current_data = getattr(self, data_attr_name)
+                    # Подготовка аргументов для вызова функции
+                    args = [current_data]
+                    if additional_args:
+                        args.extend(additional_args)
+                    transformed_data = transform_func(*args)
+                    setattr(self, data_attr_name, transformed_data)
+                    logger.info(
+                        f"Трансформация {transform_func_name} для {data_attr_name} применена. Результат: {len(transformed_data)} записей.")
+                else:
+                    logger.warning(f"Функция {transform_func_name} для {data_attr_name} не найдена в {path}")
             else:
-                logger.warning(f"Функция {transform_func_name} для {data_attr_name} не найдена в {path}")
+                logger.debug(f"Путь для трансформации '{path_key}' не указан в конфигурации")
+        else:
+            logger.debug(f"Трансформация для {path_key}  {data_attr_name} не нужна")
+
 
     def modify_data_after_compare(self):
-        logger.info("Начало модификации данных после сравнения")
-        logger.debug(f"Конфигурация трансформации : {self.config['transformation']}")
+        config_mod = self.config.get('transformation', None)
+        if config_mod:
+            logger.info("Начало модификации данных после сравнения")
+            logger.debug(f"Конфигурация трансформации : {config_mod}")
 
-        # Трансформация данных для обновления
-        if self.to_update:
-            self._apply_transform('transform_upd_data_patch', 'to_update', 'transform_upd_data',
-                                  additional_args=[self.formatted_source, self.formatted_destination])
+            # Трансформация данных для обновления
+            if self.to_update:
+                self._apply_transform('transform_upd_data_patch', 'to_update', 'transform_upd_data',
+                                      additional_args=[self.formatted_source, self.formatted_destination])
 
-        # Трансформация данных для вставки
-        if self.to_insert:
-            self._apply_transform('transform_ins_data_patch', 'to_insert', 'transform_ins_data',
-                                  additional_args=[self.formatted_source, self.formatted_destination])
+            # Трансформация данных для вставки
+            if self.to_insert:
+                self._apply_transform('transform_ins_data_patch', 'to_insert', 'transform_ins_data',
+                                      additional_args=[self.formatted_source, self.formatted_destination])
 
-        # Трансформация данных для удаления
-        if self.to_delete:
-            self._apply_transform('transform_del_data_patch', 'to_delete', 'transform_del_data',
-                                  additional_args=[self.formatted_source, self.formatted_destination])
+            # Трансформация данных для удаления
+            if self.to_delete:
+                self._apply_transform('transform_del_data_patch', 'to_delete', 'transform_del_data',
+                                      additional_args=[self.formatted_source, self.formatted_destination])
 
-        logger.info("Модификация данных после сравнения завершена")
+            logger.info("Модификация данных после сравнения завершена")
+        else:
+            logger.debug(f"Трансформация после сравнения не нужна")
 
     def execute_changes(self):
         logger.info("Начало выполнения изменений в приемнике")
-        dest_config = self.config["destination"]
+        dest_config = self.config.get("destination", {})
 
         # Используем уже созданный и подключенный экземпляр destination
         destination_instance = self.destination  # Предполагается, что destination уже создан и подключен в fetch_data
-        # Подключаться не нужно, так как уже подключены
 
         try:
             # --- Получаем имя таблицы для SQL/MySQL, None для CSV ---

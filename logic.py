@@ -1,7 +1,8 @@
 # logic.py
-import json
+import json, sys
 import logging
 from PyQt5.QtCore import QObject, pyqtSignal
+from job_manager import JobManager
 from config_manager import ConfigManager
 from data_sources import SQLDataSource, MySqlDataSource, CSVDataSource
 
@@ -22,6 +23,9 @@ class DataTransferLogic(QObject):
         self.logger = logging.getLogger(__name__)
         self.config_manager = ConfigManager()
         self.current_config = {}
+        # атрибуты для хранения исходных схем
+        self.source_schema = {}
+        self.dest_schema = {}
 
     def set_config(self, config):
         """Устанавливает текущую конфигурацию."""
@@ -80,6 +84,12 @@ class DataTransferLogic(QObject):
             source.connect()
             schema = source.get_schema()
             source.disconnect()
+
+            # Сохраняем загруженную схему в соответствующий атрибут
+            if schema_type == "source":
+                self.source_schema = schema
+            elif schema_type == "destination":
+                self.dest_schema = schema
 
             self.schema_loaded_signal.emit(schema, schema_type)
             self.log_message_signal.emit(f"{schema_type.capitalize()} schema loaded successfully")
@@ -147,15 +157,26 @@ class DataTransferLogic(QObject):
             self.transfer_finished_signal.emit(0, 0, 0, f"preparation failed: {e}")
             return None
 
-    def save_schema_to_json(self, schema, file_path):
-        """Сохраняет схему в JSON файл."""
+    def save_schema_to_json(self, schema_type, file_path):
+        """Сохраняет ранее загруженную схему в JSON файл."""
         try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(schema, f, indent=2, ensure_ascii=False)
-            self.log_message_signal.emit(f"Schema saved to: {file_path}")
+            # Выбираем схему из атрибута
+            schema_to_save = self.source_schema if schema_type == "source" else self.dest_schema
+            if not schema_to_save:
+                 self.logger.warning(f"No {schema_type} schema loaded to save.")
+                 self.log_message_signal.emit(f"No {schema_type} schema loaded to save.")
+                 return False
+
+            if file_path:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(schema_to_save, f, indent=2, ensure_ascii=False)
+                self.log_message_signal.emit(f"Schema saved to: {file_path}")
+                return True
+            return False
         except Exception as e:
-            self.logger.error(f"Failed to save schema to {file_path}: {e}")
-            self.log_message_signal.emit(f"Error saving schema: {e}")
+            self.logger.error(f"Failed to save {schema_type} schema: {e}")
+            self.log_message_signal.emit(f"Error saving {schema_type} schema: {e}")
+            return False
 
     def load_schema_from_json(self, file_path):
         """Загружает схему из JSON файла."""

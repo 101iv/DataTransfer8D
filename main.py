@@ -3,6 +3,8 @@ import sys
 import os
 import json
 import logging
+
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
 from logic import DataTransferLogic, run_cli_transfer
 from gui import DataTransferGUI
@@ -28,6 +30,13 @@ def main():
     else:
         # Режим выполнения GUI
         app = QApplication(sys.argv)
+
+        # иконка
+        icon_path = os.path.join(os.path.dirname(__file__), 'app_icon.png')  # Укажите имя вашего файла
+        if os.path.exists(icon_path):
+            app.setWindowIcon(QIcon(icon_path))
+        else:
+            print(f"Warning: Icon file not found at {icon_path}", file=sys.stderr)
 
         # Настройка логирования
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
