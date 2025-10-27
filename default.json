@@ -1,5 +1,5 @@
 {
-  "destination": {
+  "source": {
     "type": "mysql",
     "connection_params": {
       "host": "",
@@ -10,7 +10,7 @@
       "charset": "utf8mb4"
     }
   },
-  "source": {
+  "destination": {
     "type": "mysql",
     "connection_params": {
       "host": "",
@@ -24,18 +24,44 @@
   "jobs": [
     {
       "source": {
-        "table": "oc_order"
-      },
-      "destination": {
-        "table": "oc_order"
-      },
-      "comparison": {
+        "table": "oc_address",
+        "columns": [
+          "address_2",
+          "customer_id",
+          "postcode",
+          "lastname",
+          "firstname",
+          "address_id",
+          "city",
+          "zone_id",
+          "custom_field",
+          "address_1",
+          "company",
+          "country_id"
+        ],
         "key_fields": [
-          "order_id"
+          "address_id"
         ]
       },
-      "transformation": {
-        "source_path": ""
+      "destination": {
+        "table": "oc_address",
+        "columns": [
+          "address_2",
+          "customer_id",
+          "postcode",
+          "lastname",
+          "firstname",
+          "address_id",
+          "city",
+          "zone_id",
+          "custom_field",
+          "address_1",
+          "company",
+          "country_id"
+        ],
+        "key_fields": [
+          "address_id"
+        ]
       }
     }
   ]

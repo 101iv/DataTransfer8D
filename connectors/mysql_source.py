@@ -1,4 +1,4 @@
-# data_sources/mysql_source.py
+# connectors/mysql_source.py
 from .base import DataSource
 from typing import Any, Dict, List
 import mysql.connector
@@ -12,7 +12,6 @@ class MySqlDataSource(DataSource):
 
     def connect(self):
         try:
-            # Включаем autocommit при подключении
             self.connection = mysql.connector.connect(
                 host=self.connection_params.get("host", "localhost"),
                 port=self.connection_params.get("port", 3306),

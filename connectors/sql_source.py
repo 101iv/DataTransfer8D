@@ -1,4 +1,4 @@
-# data_sources/sql_source.py
+# connectors/sql_source.py
 import re
 import sqlite3
 from datetime import datetime, date

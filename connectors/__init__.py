@@ -1,4 +1,4 @@
-# data_sources/__init__.py
+# connectors/__init__.py
 from .base import DataSource
 from .sql_source import SQLDataSource
 from .mysql_source import MySqlDataSource

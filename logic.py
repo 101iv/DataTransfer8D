@@ -4,7 +4,7 @@ import logging
 from PyQt5.QtCore import QObject, pyqtSignal
 from job_manager import JobManager
 from config_manager import ConfigManager
-from data_sources import SQLDataSource, MySqlDataSource, CSVDataSource
+from connectors import SQLDataSource, MySqlDataSource, CSVDataSource
 
 
 class DataTransferLogic(QObject):

@@ -3,7 +3,7 @@ import importlib.util
 import logging  # Добавляем импорт модуля logging
 import os  # Добавлено для проверки существования файла в load_transform_function
 from typing import Any, Dict, List, Tuple
-from data_sources import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
+from connectors import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
 
 # Настройка логирования для этого модуля
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

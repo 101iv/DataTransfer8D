@@ -2,7 +2,7 @@
 import logging
 from typing import Any, Dict, List
 from data_transfer import DataTransfer  # Импортируем оригинальный DataTransfer
-from data_sources import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
+from connectors import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
 
 logger = logging.getLogger(__name__)  # Создаем логгер для этого файла
 
