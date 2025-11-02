@@ -13,6 +13,10 @@ class DataSource(ABC):
         pass
 
     @abstractmethod
+    def build_select_query(self, table_name: str, fields: List[str] = None) -> str:
+        pass
+
+    @abstractmethod
     def get_schema(self) -> Dict[str, Any]:
         pass
 

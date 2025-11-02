@@ -71,7 +71,7 @@ class MySqlDataSource(DataSource):
             fields_str = '*'
 
         query = f"SELECT {fields_str} FROM {table_name}"
-        logger.debug(f"Built SELECT query: {query}")
+        logger.debug(f"Built SELECT query  for MySQL: {query}")
         return query
 
     def get_schema(self) -> Dict[str, Any]:

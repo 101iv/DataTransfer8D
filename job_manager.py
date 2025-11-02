@@ -40,7 +40,7 @@ class JobManager:
             source_shema = self.source_instance.get_schema()
             destination_shema = self.destination_instance.get_schema()
             self.config = ConfigManager.transform_config(self.config, source_shema, destination_shema)
-
+            self.jobs = self.config.get("jobs", [])
 
             for i, job_config in enumerate(self.jobs):
                 logger.info(f"--- НАЧАЛО ВЫПОЛНЕНИЯ JOB {i + 1}/{len(self.jobs)} ---")

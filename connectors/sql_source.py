@@ -60,6 +60,17 @@ class SQLDataSource(DataSource):
             logger.error(f"An unexpected error occurred during fetch_ {e}")
             raise
 
+    def build_select_query(self, table_name: str, fields: List[str] = None) -> str:
+        # Формируем список полей
+        if fields:
+            fields_str = ', '.join(fields)
+        else:
+            fields_str = '*'
+
+        query = f"SELECT {fields_str} FROM [{table_name}]"
+        logger.debug(f"Built SELECT query for SQLite: {query}")
+        return query
+
     def get_schema(self) -> Dict[str, Any]:
         if not self.connection:
             error_msg = "Connection not established"
