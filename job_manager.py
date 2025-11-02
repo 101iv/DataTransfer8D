@@ -1,9 +1,10 @@
 # job_manager.py
 import logging
+from importlib.util import source_hash
 from typing import Any, Dict, List
 from data_transfer import DataTransfer  # Импортируем оригинальный DataTransfer
 from connectors import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
-
+from config_manager import ConfigManager
 logger = logging.getLogger(__name__)  # Создаем логгер для этого файла
 
 
@@ -31,11 +32,15 @@ class JobManager:
         logger.info("=== ЗАПУСК ПРОЦЕССА МНОЖЕСТВЕННОГО ПЕРЕНОСА ДАННЫХ ===")
         try:
             self._connect_sources()
-            # --- НОВОЕ: Обнуляем списки перед началом, если это может быть повторный запуск ---
+            # Обнуляем списки перед началом, если это может быть повторный запуск ---
             self.to_insert = []
             self.to_update = []
             self.to_delete = []
-            # ------------------------------------------------------------
+
+            source_shema = self.source_instance.get_schema()
+            destination_shema = self.destination_instance.get_schema()
+            self.config = ConfigManager.transform_config(self.config, source_shema, destination_shema)
+
 
             for i, job_config in enumerate(self.jobs):
                 logger.info(f"--- НАЧАЛО ВЫПОЛНЕНИЯ JOB {i + 1}/{len(self.jobs)} ---")

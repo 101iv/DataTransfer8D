@@ -191,7 +191,142 @@ class ConfigManager:
 
         return new_jobs
 
-    def transform_config(self, user_config: Dict[str, Any], source_schema: Dict[str, List[Dict[str, Any]]],
+    def _transform_single_job(self, job: Dict[str, Any], source_schema: Dict[str, List[Dict[str, Any]]],
+                              dest_schema: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
+        """
+        Обрабатывает один обычный job по правилам:
+        - если в source есть ключ table но нет columns то получаем колонки из _get_similar_fields
+        - если в source есть ключ table но нет key_fields то получаем ключи из _get_primary_key_fields
+        - в destination обязательно должен быть  ключ table если нет то ошибка
+        - если в destination нет columns то получаем колонки из _get_similar_fields
+        - если в destination нет key_fields то получаем ключи из _get_primary_key_fields
+
+        Args:
+            job: Словарь job'а для обработки
+            source_schema: Словарь схемы источника
+            dest_schema: Словарь схемы назначения
+
+        Returns:
+            Dict: Обновленный job
+        """
+        # Работаем с оригинальным job, но будем аккуратно обновлять вложенные структуры
+        # Не создаем копию job сразу, а будем копировать только изменяемые вложенные словари
+
+        source_info = job.get("source", {})
+        dest_info = job.get("destination", {})
+
+        # --- Проверка destination на наличие table ---
+        dest_table = dest_info.get("table")
+        if dest_table is None:
+            raise ValueError("Destination table is required but not found in job.")
+
+        # --- Обработка source ---
+        source_table = source_info.get("table")  # Может быть None, если нет 'table'
+
+        # Если в source есть 'table' и нет 'columns'
+        if source_table is not None and ("columns" not in source_info or not source_info["columns"]):
+            # Проверим, есть ли таблица в source_schema
+            if source_schema and source_table in source_schema:
+                # Проверим, есть ли таблица в dest_schema
+                if dest_schema and dest_table in dest_schema:
+                    # Получаем схожие поля
+                    similar_fields = self._get_similar_fields(
+                        source_schema, dest_schema, source_table, dest_table
+                    )
+                    # Создаем копию source_info, чтобы не изменять оригинальный
+                    updated_source_info = source_info.copy()
+                    updated_source_info["columns"] = similar_fields
+                    # Обновляем копию job, в которую вставляем обновленный source_info
+                    updated_job = job.copy()
+                    updated_job["source"] = updated_source_info
+                    print(
+                        f"DEBUG: Set source columns for job with table '{source_table}' -> '{dest_table}': {similar_fields}")
+                    # Присваиваем job для дальнейших изменений
+                    job = updated_job
+                    source_info = updated_source_info  # Обновляем переменную для последующего использования
+                else:
+                    print(
+                        f"DEBUG: Destination table '{dest_table}' not found in dest_schema. Cannot infer source columns.")
+            else:
+                print(f"DEBUG: Source table '{source_table}' not found in source_schema. Cannot infer source columns.")
+
+        # Если в source есть 'table' и нет 'key_fields'
+        if source_table is not None and ("key_fields" not in source_info or not source_info["key_fields"]):
+            if source_schema and source_table in source_schema:
+                primary_keys = self._get_primary_key_fields(source_schema, source_table)
+                # Обновляем source_info
+                updated_source_info = source_info.copy()
+                updated_source_info["key_fields"] = primary_keys
+                # Обновляем копию job, в которую вставляем обновленный source_info
+                updated_job = job.copy()
+                updated_job["source"] = updated_source_info
+                print(f"DEBUG: Set source key_fields for table '{source_table}': {primary_keys}")
+                job = updated_job
+                source_info = updated_source_info  # Обновляем переменную для последующего использования
+            else:
+                print(
+                    f"DEBUG: Source table '{source_table}' not found in source_schema. Cannot infer source key_fields.")
+
+        # --- Обработка destination ---
+        # dest_table уже проверен выше
+
+        # Обновляем dest_info, если job был скопирован ранее
+        dest_info = job.get("destination", {})
+
+        # Если в destination нет 'columns'
+        if "columns" not in dest_info or not dest_info["columns"]:
+            # Нужно получить source_table, если он был определен ранее в этом же job
+            current_source_info = job.get("source", {})  # Берем обновленный source, если он был изменен
+            current_source_table = current_source_info.get("table",
+                                                           source_table)  # Используем обновленный, если есть, иначе исходный
+            if current_source_table is not None:  # Убедимся, что source_table определена
+                if dest_schema and dest_table in dest_schema:
+                    # Проверим, есть ли таблица в source_schema (используем исходный source_table, т.к. он мог быть в обновленном, но если нет, то из оригинального job)
+                    if source_schema and current_source_table in source_schema:
+                        similar_fields = self._get_similar_fields(
+                            source_schema, dest_schema, current_source_table, dest_table
+                        )
+                        # Создаем копию dest_info, чтобы не изменять оригинальный
+                        updated_dest_info = dest_info.copy()
+                        updated_dest_info["columns"] = similar_fields
+                        # Обновляем копию job, в которую вставляем обновленный dest_info
+                        updated_job = job.copy()
+                        updated_job["destination"] = updated_dest_info
+                        print(
+                            f"DEBUG: Set destination columns for job with table '{current_source_table}' -> '{dest_table}': {similar_fields}")
+                        job = updated_job
+                        dest_info = updated_dest_info  # Обновляем переменную для последующего использования
+                    else:
+                        print(
+                            f"DEBUG: Source table '{current_source_table}' not found in source_schema. Cannot infer destination columns.")
+                else:
+                    print(
+                        f"DEBUG: Destination table '{dest_table}' not found in dest_schema. Cannot infer destination columns.")
+            else:
+                print(
+                    f"DEBUG: No source table found to infer destination columns for destination table '{dest_table}'.")
+
+        # Если в destination нет 'key_fields'
+        if "key_fields" not in dest_info or not dest_info["key_fields"]:
+            if dest_schema and dest_table in dest_schema:
+                primary_keys = self._get_primary_key_fields(dest_schema, dest_table)
+                # Обновляем dest_info
+                updated_dest_info = dest_info.copy()
+                updated_dest_info["key_fields"] = primary_keys
+                # Обновляем копию job, в которую вставляем обновленный dest_info
+                updated_job = job.copy()
+                updated_job["destination"] = updated_dest_info
+                print(f"DEBUG: Set destination key_fields for table '{dest_table}': {primary_keys}")
+                job = updated_job
+            else:
+                print(f"DEBUG: Destination table '{dest_table}' not found in dest_schema. Cannot infer key_fields.")
+
+        # Возвращаем job, который мог быть оригиналом или копией, в зависимости от изменений
+        return job
+
+
+    @classmethod
+    def transform_config(cls, user_config: Dict[str, Any], source_schema: Dict[str, List[Dict[str, Any]]],
                          dest_schema: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
         """
         Метод для преобразования конфига на основе пользовательского конфига и схем баз данных
@@ -204,6 +339,9 @@ class ConfigManager:
         Returns:
             Dict: Новый преобразованный конфиг
         """
+        # Создаем экземпляр ConfigManager для доступа к вспомогательным методам
+        config_manager = cls()
+
         # Создаем копию конфига для модификации
         new_config = user_config.copy()
 
@@ -214,13 +352,12 @@ class ConfigManager:
             if "tables" in job:
                 # Если есть ключ tables, используем add-jobs-from-tbl-names
                 table_names = job["tables"]
-                new_jobs = self._add_jobs_from_tbl_names(table_names, source_schema, dest_schema)
+                new_jobs = config_manager._add_jobs_from_tbl_names(table_names, source_schema, dest_schema)
                 transformed_jobs.extend(new_jobs)
             else:
-                # Обрабатываем обычный job
-                # Оставляем job без изменений, он уже содержит source, destination и transformation
-                # Ключи сравнения будут искаться внутри DataTransfer по мере выполнения конкретного job
-                transformed_jobs.append(job)
+                # Обрабатываем обычный job с помощью нового метода
+                processed_job = config_manager._transform_single_job(job, source_schema, dest_schema)
+                transformed_jobs.append(processed_job)
 
         # Заменяем jobs в новом конфиге
         new_config["jobs"] = transformed_jobs

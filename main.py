@@ -10,6 +10,8 @@ from logic import DataTransferLogic, run_cli_transfer
 from gui import DataTransferGUI
 from log_handler import LogHandler
 
+# todo проверить форматирование конфига
+# todo 1 тест Transfer failed: 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 
 def main():
     # Проверяем аргументы командной строки
