@@ -8,6 +8,7 @@ import logging
 from .base import DataSource
 from typing import Any, Dict, List
 
+"""не определяет автоматом ключевые поля"""
 
 # Настройка логирования для этого модуля
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
