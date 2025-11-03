@@ -4,16 +4,17 @@ from typing import Any, Dict, List
 import pyodbc
 import logging
 
+"""не определяет автоматом ключевые поля"""
 # Настройка логирования для этого модуля
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)  # Создаем логгер для этого файла
 
 class AccessDataSource(DataSource):
     def __init__(self, connection_params: Dict[str, Any]):
-        # Ожидаем, что connection_params будет содержать 'db_path' - путь к .mdb или .accdb файлу
-        self.db_path = connection_params.get("db_path")
+        # Ожидаем, что connection_params будет содержать 'path' - путь к .mdb или .accdb файлу
+        self.db_path = connection_params.get("path")
         if not self.db_path:
-            error_msg = "Connection parameter 'db_path' is required for Access database."
+            error_msg = "Connection parameter 'path' is required for Access database."
             logger.error(error_msg)
             raise ValueError(error_msg)
         self.connection_string = f"Driver={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={self.db_path};"
@@ -78,6 +79,29 @@ class AccessDataSource(DataSource):
         logger.debug(f"Built SELECT query: {query}")
         return query
 
+    def _get_primary_keys(self, cursor, table_name: str) -> List[str]:
+        """Получает имена столбцов, составляющих первичный ключ таблицы."""
+        pk_columns = []
+        try:
+            # pyodbc.primaryKeys возвращает информацию о первичных ключах
+            cursor.primaryKeys(table=table_name)
+            pk_info = cursor.fetchall()
+            # Индекс 3 в кортеже - это COLUMN_NAME
+            pk_columns = [row[3] for row in pk_info if row and len(row) > 3 and row[3]]
+        except pyodbc.Error as e:
+            # Проверяем, связана ли ошибка с неподдерживаемой функцией
+            if e.args[0] == 'IM001':
+                logger.warning(
+                    f"Driver does not support primary key retrieval for table '{table_name}'. Skipping. Error: {e}")
+            else:
+                logger.warning(f"Could not retrieve primary keys for table '{table_name}': {e}")
+            # Возвращаем пустой список, если функция не поддерживается или произошла другая ошибка
+            return []
+        except Exception as e:
+            logger.warning(f"Unexpected error retrieving primary keys for table '{table_name}': {e}")
+            return []
+        return pk_columns
+
     def get_schema(self) -> Dict[str, Any]:
         if not self.connection:
             error_msg = "Connection not established"
@@ -88,49 +112,69 @@ class AccessDataSource(DataSource):
             cursor = self.connection.cursor()
             logger.info("Fetching database schema...")
 
-            # Получаем список таблиц (исключая системные)
-            cursor.execute("""
-                SELECT Name
-                FROM MSysObjects
-                WHERE Type=1 AND Flags=0 AND Name NOT LIKE 'MSys*'
-            """)
-            table_names = [row[0] for row in cursor.fetchall()]
+            # Используем методы pyodbc для получения информации о таблицах и столбцах.
+            cursor.tables(tableType='TABLE')
+            table_rows = cursor.fetchall()
+            table_names = [row[2] for row in table_rows if row and len(row) > 2 and row[2]]
+
+            # Фильтруем системные таблицы Access
+            user_table_names = [name for name in table_names if
+                                not name.startswith('MSys') and not name.startswith('USys')]
 
             schema = {}
-            for table_name in table_names:
-                # Получаем информацию о полях таблицы
-                # pyodbc.columns возвращает информацию о столбцах
+            for table_name in user_table_names:
+                logger.debug(f"Fetching columns for table: {table_name}")
                 cursor.columns(table=table_name)
                 columns_info = cursor.fetchall()
 
+                # Получаем первичные ключи для текущей таблицы (может вернуть пустой список)
+                pk_columns = self._get_primary_keys(cursor, table_name)
+
                 schema[table_name] = []
                 for col_info in columns_info:
+                    # Пример структуры col_info (может варьироваться)
+                    # Индексы, которые обычно доступны:
                     # col_info[3] - COLUMN_NAME
-                    # col_info[5] - DATA_TYPE (pyodbc type code)
-                    # col_info[6] - TYPE_NAME (string representation like 'TEXT', 'LONG', 'DATE', etc.)
-                    # col_info[10] - NULLABLE (0 - NO, 1 - YES)
-                    # col_info[17] - IS_NULLABLE ('NO', 'YES')
-                    # col_info[22] - IS_AUTOINCREMENT ('YES', 'NO', None)
+                    # col_info[5] - TYPE_NAME
+                    # col_info[10] - NULLABLE (0=NO, 1=YES)
+                    # col_info[12] - COLUMN_DEF (Default value)
+                    # col_info[17] - IS_NULLABLE ('YES', 'NO')
+                    # Индексы, которые могут отсутствовать:
+                    # col_info[22] - IS_AUTOINCREMENT ('YES', 'NO', None) - часто отсутствует
 
-                    # Для определения первичного ключа используем индексы
-                    # Сначала получим список первичных ключей для таблицы
-                    pk_columns = self._get_primary_keys(cursor, table_name)
+                    col_name = col_info[3] if len(col_info) > 3 else None
+                    if not col_name:
+                        logger.warning(f"Skipping column in {table_name} due to missing name.")
+                        continue
 
-                    col_name = col_info[3]
-                    type_name = col_info[6]
-                    is_nullable = col_info[17] == 'YES'
-                    is_autoincrement = col_info[22] == 'YES'
+                    type_name = col_info[5] if len(col_info) > 5 else "UNKNOWN"
+                    # is_nullable: 0 означает NO, 1 означает YES (col_info[10])
+                    is_nullable_int = col_info[10] if len(col_info) > 10 else 2  # 2 - UNKNOWN
+                    is_nullable = (is_nullable_int == 1)
+                    # default_val: col_info[12]
+                    default_val = col_info[12] if len(col_info) > 12 and col_info[12] is not None else None
+
+                    # is_autoincrement: col_info[22] - может не существовать
+                    # Проверяем, существует ли индекс 22 в кортеже перед доступом
+                    is_autoincrement_str = ""
+                    if len(col_info) > 22:
+                        is_autoincrement_str = col_info[22] or ""
+                    # Если тип столбца - COUNTER, это обычно автоинкремент
+                    if type_name.upper() == 'COUNTER':
+                        is_autoincrement_str = 'YES'
 
                     schema[table_name].append({
                         "name": col_name,
                         "type": type_name,
                         "not_null": not is_nullable,
-                        "default": None, # Access не всегда предоставляет информацию о DEFAULT через pyodbc
-                        "extra": "autoincrement" if is_autoincrement else "",
+                        "default": default_val,
+                        "extra": "autoincrement" if is_autoincrement_str == 'YES' else "",
                         "primary_key": col_name in pk_columns
                     })
+
             logger.info(f"Fetched schema for {len(schema)} tables.")
             return schema
+
         except pyodbc.Error as err:
             logger.error(f"Error fetching schema: {err}")
             raise Exception(f"Error fetching schema: {err}")
@@ -139,21 +183,10 @@ class AccessDataSource(DataSource):
             raise
         finally:
             if 'cursor' in locals() and cursor:
-                cursor.close()
-
-    def _get_primary_keys(self, cursor, table_name: str) -> List[str]:
-        """Вспомогательный метод для получения списка первичных ключей таблицы."""
-        try:
-            logger.debug(f"Fetching primary keys for table '{table_name}'.")
-            # Используем pyodbc.primaryKeys
-            cursor.primaryKeys(table=table_name)
-            pk_info = cursor.fetchall()
-            pk_columns = [row[3] for row in pk_info] # row[3] - COLUMN_NAME
-            logger.debug(f"Found primary keys for '{table_name}': {pk_columns}")
-            return pk_columns
-        except Exception as e:
-            logger.warning(f"Could not fetch primary keys for table '{table_name}': {e}. Returning empty list.")
-            return []
+                try:
+                    cursor.close()
+                except:
+                    pass  # Игнорируем ошибки при закрытии курсора в finally
 
 
     # --- Новые методы для INSERT, UPDATE, DELETE ---

@@ -1,4 +1,5 @@
 # connectors/sql_source.py
+import decimal
 import re
 import sqlite3
 from datetime import datetime, date
@@ -7,6 +8,11 @@ import logging
 from .base import DataSource
 from typing import Any, Dict, List
 
+# Регистрируем адаптер для Decimal -> float
+def adapt_decimal_float(d):
+    return float(d)
+
+sqlite3.register_adapter(decimal.Decimal, adapt_decimal_float) # Или adapt_decimal_str
 
 # Настройка логирования для этого модуля
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

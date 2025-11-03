@@ -197,6 +197,10 @@ class ConfigManager:
             # Получаем ключевые поля из схем
             source_primary_keys = self._get_primary_key_fields(source_schema, table_name)
             dest_primary_keys = self._get_primary_key_fields(dest_schema, table_name)
+            if not source_primary_keys:
+                source_primary_keys = dest_primary_keys
+            if not dest_primary_keys:
+                dest_primary_keys = source_primary_keys
 
             # Создаем новое задание
             job = {

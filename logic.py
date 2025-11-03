@@ -2,9 +2,8 @@
 import json, sys
 import logging
 from PyQt5.QtCore import QObject, pyqtSignal
-from job_manager import JobManager
+from job_manager import JobManager, get_data_source
 from config_manager import ConfigManager
-from connectors import SQLDataSource, MySqlDataSource, CSVDataSource
 
 
 class DataTransferLogic(QObject):
@@ -80,7 +79,7 @@ class DataTransferLogic(QObject):
             db_type = db_config.get("type", "")
             connection_params = db_config.get("connection_params", {})
 
-            source = self._get_data_source(db_type, connection_params)
+            source = get_data_source(db_type, connection_params)
             source.connect()
             schema = source.get_schema()
             source.disconnect()
@@ -108,7 +107,7 @@ class DataTransferLogic(QObject):
             db_type = db_config.get("type", "")
             connection_params = db_config.get("connection_params", {})
 
-            source = self._get_data_source(db_type, connection_params)
+            source = get_data_source(db_type, connection_params)
             source.connect()
             query = f"SELECT * FROM {table_name} LIMIT 10"
             rows = source.fetch_data(query)
@@ -219,16 +218,6 @@ class DataTransferLogic(QObject):
             self.log_message_signal.emit(f"Error loading table data: {e}")
             return [], []
 
-    def _get_data_source(self, db_type, connection_params):
-        """Вспомогательный метод для создания экземпляра источника данных."""
-        if db_type == "mysql":
-            return MySqlDataSource(connection_params)
-        elif db_type == "sql":
-            return SQLDataSource(connection_params)
-        elif db_type == "csv":
-            return CSVDataSource(connection_params)
-        else:
-            raise ValueError(f"Unsupported database type: {db_type}")
 
     def _load_schema_from_config(self, schema_type):
         """Вспомогательный метод для загрузки схемы из конфига."""
@@ -237,7 +226,7 @@ class DataTransferLogic(QObject):
         db_config = config.get(config_key, {})
         db_type = db_config.get("type", "")
         connection_params = db_config.get("connection_params", {})
-        source = self._get_data_source(db_type, connection_params)
+        source = get_data_source(db_type, connection_params)
         source.connect()
         schema = source.get_schema()
         source.disconnect()

@@ -3,9 +3,25 @@ import logging
 from importlib.util import source_hash
 from typing import Any, Dict, List
 from data_transfer import DataTransfer  # Импортируем оригинальный DataTransfer
-from connectors import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource
+from connectors import DataSource, SQLDataSource, CSVDataSource, MySqlDataSource, AccessDataSource, XlsxDataSource
 from config_manager import ConfigManager
 logger = logging.getLogger(__name__)  # Создаем логгер для этого файла
+
+
+def get_data_source(source_type: str, connection_params: Dict[str, Any]) -> DataSource:
+    logger.debug(f"Получение источника данных типа: {source_type}")
+    if source_type == "sql":
+        return SQLDataSource(connection_params)
+    elif source_type == "mysql":
+        return MySqlDataSource(connection_params)
+    elif source_type == "csv":
+        return CSVDataSource(connection_params)
+    elif source_type == "msaccess":
+        return AccessDataSource(connection_params)
+    elif source_type == "xlsx":
+        return XlsxDataSource(connection_params)
+    else:
+        raise ValueError(f"Unsupported source type: {source_type}")
 
 
 class JobManager:
@@ -74,18 +90,6 @@ class JobManager:
             logger.error(f"=== ПРОЦЕСС МНОЖЕСТВЕННОГО ПЕРЕНОСА ДАННЫХ ЗАВЕРШЕН С ОШИБКОЙ: {e} ===")
             raise  # Передаем ошибку выше, чтобы GUI мог её обработать
 
-
-    def get_data_source(self, source_type: str, connection_params: Dict[str, Any]) -> DataSource:
-        logger.debug(f"Получение источника данных типа: {source_type}")
-        if source_type == "sql":
-            return SQLDataSource(connection_params)
-        elif source_type == "mysql":
-            return MySqlDataSource(connection_params)
-        elif source_type == "csv":
-            return CSVDataSource(connection_params)
-        else:
-            raise ValueError(f"Unsupported source type: {source_type}")
-
     def _connect_sources(self):
         """
         Подключается к источникам данных (источник и приемник).
@@ -105,12 +109,12 @@ class JobManager:
 
         # Подключение к источнику
         logger.debug(f"Подключение к источнику ({source_type})...")
-        self.source_instance = self.get_data_source(source_type, source_connection_params)
+        self.source_instance = get_data_source(source_type, source_connection_params)
         self.source_instance.connect()
 
         # Подключение к приемнику
         logger.debug(f"Подключение к приемнику ({dest_type})...")
-        self.destination_instance = self.get_data_source(dest_type, dest_connection_params)
+        self.destination_instance = get_data_source(dest_type, dest_connection_params)
         self.destination_instance.connect()
 
     def _disconnect_sources(self):
