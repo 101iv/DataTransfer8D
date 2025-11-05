@@ -1,0 +1,30 @@
+{
+    "name": "MySQL to XLSX",
+    "source": {
+      "type": "mysql",
+      "connection_params": {
+        "host": "MYSQL_HOST",
+        "port": 3306,
+        "user": "MYSQL_USER",
+        "password": "MYSQL_PASSWORD",
+        "database": "MYSQL_DB1"
+      }
+    },
+    "destination": {
+      "type": "xlsx",
+      "connection_params": {
+        "path": "test_db4.xlsx"
+      }
+    },
+    "jobs": [
+      {
+        "source": {
+          "table": "table1"
+        },
+        "destination": {
+          "sheet": "table1_xlsx"
+        },
+        "mode": "replace"
+      }
+    ]
+  }

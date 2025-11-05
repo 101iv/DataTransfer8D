@@ -1,0 +1,30 @@
+{
+    "name": "MySQL to SQLite",
+    "source": {
+      "type": "mysql",
+      "connection_params": {
+        "host": "MYSQL_HOST",
+        "port": 3306,
+        "user": "MYSQL_USER",
+        "password": "MYSQL_PASSWORD",
+        "database": "MYSQL_DB1"
+      }
+    },
+    "destination": {
+      "type": "sql",
+      "connection_params": {
+        "path": "test_db2.db"
+      }
+    },
+    "jobs": [
+      {
+        "source": {
+          "table": "table1"
+        },
+        "destination": {
+          "table": "table1_sqlite"
+        },
+        "mode": "replace"
+      }
+    ]
+  }
