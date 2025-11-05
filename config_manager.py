@@ -225,9 +225,9 @@ class ConfigManager:
                               dest_schema: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
         """
         Обрабатывает один обычный job по правилам:
-        - если в source есть ключ table но нет columns то получаем колонки из _get_similar_fields для source и destination
-        - если в source есть ключ table но нет key_fields то получаем ключи из _get_primary_key_fields
-        - в destination обязательно должен быть  ключ table если нет то ошибка
+        - если в source есть ключ table, но нет columns, то получаем колонки из _get_similar_fields для source и destination
+        - если в source есть ключ table, но нет key_fields, то получаем ключи из _get_primary_key_fields
+        - в destination обязательно должен быть ключ table если нет то ошибка
         - если в destination нет key_fields то получаем ключи из _get_primary_key_fields
         """
         logger.debug(f"Начало трансформации одиночного задания: {job}")
@@ -276,6 +276,12 @@ class ConfigManager:
         if "key_fields" not in dest_info or dest_info["key_fields"] is None or dest_info["key_fields"] == []:
             logger.debug(f"Ключевые поля для destination таблицы {dest_table} не указаны, получаем из схемы.")
             primary_keys = self._get_primary_key_fields(dest_schema, dest_table)
+            if not primary_keys:
+                if "key_fields" not in source_info:
+                    logger.error("Не найдены ключевые поля для источника и назначения.")
+                else:
+                    primary_keys = source_info["key_fields"]
+            
             dest_info["key_fields"] = primary_keys
             logger.debug(f"Установлены ключевые поля destination: {primary_keys}")
 
