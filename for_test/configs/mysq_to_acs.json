@@ -1,0 +1,29 @@
+{
+  "source": {
+    "type": "mysql",
+    "connection_params": {
+      "host": "MYSQL_HOST",
+      "port": 3306,
+      "user": "MYSQL_USER",
+      "password": "MYSQL_PASSWORD",
+      "database": "MYSQL_DB1"
+    }
+  },
+  "destination": {
+    "type": "msaccess",
+    "connection_params": {
+      "path": "D:\\Py\\work\\8D DataTransfer py3.12-64bit\\for_test\\test_db3.accdb"
+    }
+  },
+  "jobs": [
+    {
+      "source": {
+        "table": "table1"
+      },
+      "destination": {
+        "table": "table1"
+      },
+      "mode": "replace"
+    }
+  ]
+}

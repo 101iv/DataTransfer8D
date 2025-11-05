@@ -25,7 +25,7 @@
           "table": "table1"
         },
         "destination": {
-          "table": "table1_copy"
+          "table": "table2"
         },
         "mode": "replace"
       }

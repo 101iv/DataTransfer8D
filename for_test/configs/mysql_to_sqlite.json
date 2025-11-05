@@ -1,5 +1,4 @@
 {
-    "name": "MySQL to SQLite",
     "source": {
       "type": "mysql",
       "connection_params": {
@@ -22,7 +21,7 @@
           "table": "table1"
         },
         "destination": {
-          "table": "table1_sqlite"
+          "table": "table1"
         },
         "mode": "replace"
       }
