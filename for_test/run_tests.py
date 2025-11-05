@@ -15,11 +15,12 @@ import subprocess
 from pathlib import Path
 import re
 
+ROUNDS = 1
 # --- НАСТРОЙКА ПОЛЬЗОВАТЕЛЯ: укажи нужные конфиги ---
 CONFIG_NAMES = [
     "mysql_to_mysql",
     "mysql_to_sqlite",
-    "mysq_to_acs",
+    "mysql_to_acs",
     "mysql_to_xlsx",
 ]
 # ----------------------------------------------------
@@ -28,6 +29,7 @@ CONFIG_NAMES = [
 TEST_DIR = Path(__file__).parent
 CONFIGS_DIR = TEST_DIR / "configs"
 RESULTS_DIR = TEST_DIR / "results"
+TEMP_CONFIGS_DIR = RESULTS_DIR / "temp_configs"
 
 # Создаем папки
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -62,7 +64,7 @@ def run_test(config_path: Path):
     # Имя теста — имя файла без расширения
     test_name = config_path.stem
     log_file = RESULTS_DIR / f"{test_name}.log"
-    temp_config_path = RESULTS_DIR / "temp_configs" / f"{test_name}_resolved.json"
+    temp_config_path = TEMP_CONFIGS_DIR / f"{test_name}_resolved.json"
 
     logging.info(f"▶ Запуск теста: {test_name}")
 
@@ -100,11 +102,8 @@ def run_test(config_path: Path):
             log_f.write(f"=== ORIGINAL CONFIG ===\n")
             log_f.write(json.dumps(config_data, indent=2, ensure_ascii=False) + "\n\n")
 
-            log_f.write(f"=== RESOLVED CONFIG ===\n")
-            log_f.write(json.dumps(resolved_config, indent=2, ensure_ascii=False) + "\n\n")
-
         # Сохраняем временный конфиг
-        temp_config_path.parent.mkdir(exist_ok=True)
+        TEMP_CONFIGS_DIR.mkdir(exist_ok=True)
         with open(temp_config_path, 'w', encoding='utf-8') as f:
             json.dump(resolved_config, f, indent=2, ensure_ascii=False)
 
@@ -124,16 +123,28 @@ def run_test(config_path: Path):
 
         if result.returncode == 0:
             logging.info(f"✅ Тест '{test_name}' прошёл успешно. Лог: {log_file}")
-            # Опционально: удалить временный конфиг
-            # temp_config_path.unlink(missing_ok=True)
-            return True
+            return True, temp_config_path
         else:
             logging.error(f"❌ Тест '{test_name}' завершился с ошибкой (код: {result.returncode}). Лог: {log_file}")
-            return False
+            return False, temp_config_path
 
     except Exception as e:
         logging.error(f"❌ Ошибка при запуске теста '{test_name}': {e}")
-        return False
+        return False, None
+
+
+def cleanup_temp_configs():
+    """Удаляет временные конфиги после выполнения всех тестов"""
+    if TEMP_CONFIGS_DIR.exists():
+        try:
+            for temp_file in TEMP_CONFIGS_DIR.iterdir():
+                if temp_file.is_file():
+                    temp_file.unlink()
+            logging.info(f"🗑️ Временные конфиги удалены: {TEMP_CONFIGS_DIR}")
+        except Exception as e:
+            logging.warning(f"⚠️ Не удалось удалить временные файлы: {e}")
+    else:
+        logging.debug(f"📁 Папка {TEMP_CONFIGS_DIR} не существует — удаление пропущено.")
 
 
 def main():
@@ -146,17 +157,24 @@ def main():
             continue
         config_files.append(json_path)
 
-    # Запускаем 2 раунда
     total_tests = 0
     passed_tests = 0
+    created_temp_files = []  # Сохраняем пути к созданным временным файлам
 
-    for round_num in range(1, 3):  # Ровно 2 раунда
-        logging.info(f"\n🔄 РАУНД {round_num} НАЧАЛСЯ")
-        for config_file in config_files:
-            total_tests += 1
-            success = run_test(config_file)
-            if success:
-                passed_tests += 1
+    try:
+        for round_num in range(1, ROUNDS + 1):
+            logging.info(f"\n🔄 РАУНД {round_num} НАЧАЛСЯ")
+            for config_file in config_files:
+                total_tests += 1
+                success, temp_path = run_test(config_file)
+                if success:
+                    passed_tests += 1
+                if temp_path:
+                    created_temp_files.append(temp_path)
+
+    finally:
+        # Гарантированное удаление временных файлов
+        cleanup_temp_configs()
 
     # Итог
     logging.info(f"\n📊 ИТОГО: {passed_tests} / {total_tests} тестов пройдено.")
