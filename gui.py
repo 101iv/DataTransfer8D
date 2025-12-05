@@ -379,7 +379,18 @@ class DataTransferGUI(QMainWindow):
             self.transformed_config_text.setPlainText(json.dumps(transformed_config, indent=2))
 
     def run_transfer(self):
-        config = self.logic.run_transfer()  # Подготовка конфига
+        # Получаем актуальный конфиг из текстового поля GUI
+        try:
+            config_text = self.config_text.toPlainText()
+            config = json.loads(config_text)
+            # Передаём конфиг напрямую в logic (обновляем его состояние)
+            self.logic.set_config(config)
+        except json.JSONDecodeError:
+            QMessageBox.critical(self, "Error", "Invalid JSON in Configuration tab")
+            return
+
+        # Теперь вызываем run_transfer, который вернёт обновлённый config
+        config = self.logic.run_transfer()
         if config:
             from transfer_worker import TransferWorker
             self.transfer_worker = TransferWorker(config)

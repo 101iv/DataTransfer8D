@@ -64,14 +64,18 @@ class MySqlDataSource(DataSource):
             raise
 
     def build_select_query(self, table_name: str, fields: List[str] = None) -> str:
+        # Экранируем имя таблицы
+        safe_table = f"`{table_name}`"
+
         # Формируем список полей
         if fields:
-            fields_str = ', '.join(fields)
+            safe_fields = [f"`{field}`" for field in fields]
+            fields_str = ', '.join(safe_fields)
         else:
             fields_str = '*'
 
-        query = f"SELECT {fields_str} FROM {table_name}"
-        logger.debug(f"Built SELECT query  for MySQL: {query}")
+        query = f"SELECT {fields_str} FROM {safe_table}"
+        logger.debug(f"Built SELECT query for MySQL: {query}")
         return query
 
     def get_schema(self) -> Dict[str, Any]:

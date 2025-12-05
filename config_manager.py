@@ -1,3 +1,4 @@
+# config_manager.py
 import json
 from typing import Any, Dict, List, Tuple
 import tkinter.messagebox as messagebox
@@ -5,7 +6,7 @@ import tkinter.filedialog as filedialog
 import logging
 
 # Настройка логирования для этого модуля
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)  # Создаем логгер для этого файла
 
 # Класс для работы с конфигурацией

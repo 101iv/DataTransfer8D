@@ -142,19 +142,9 @@ class DataTransferLogic(QObject):
             return None
 
     def run_transfer(self):
-        """Запускает процесс переноса данных."""
         self.logger.info("--- ЗАПУСК ПЕРЕНОСА ИЗ LOGIC ---")
         self.progress_update_signal.emit(0)
-        try:
-            config = self.get_config()
-            # Этот метод будет вызываться в отдельном потоке через TransferWorker
-            # Поэтому возвращаем config, который передаст TransferWorker
-            return config
-        except Exception as e:
-            self.logger.error(f"--- ОШИБКА подготовки переноса ИЗ LOGIC: {e} ---")
-            self.progress_update_signal.emit(0)
-            self.transfer_finished_signal.emit(0, 0, 0, f"preparation failed: {e}")
-            return None
+        return self.get_config()  # конфиг уже актуален
 
     def save_schema_to_json(self, schema_type, file_path):
         """Сохраняет ранее загруженную схему в JSON файл."""
