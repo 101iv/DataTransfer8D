@@ -131,20 +131,60 @@ DataTransfer8D  Программа на python для переноса с тра
 
 # Установка
 
-### Запуск в windows из виртуальной среды
-Ссылка на архив: https://disk.yandex.ru/d/Mg_-rvXYOzPuug
-
-В архиве лежит все необходимое для быстрого запуска в windows,
-файл run.but запускает виртуальную среду и программу 
+### Запуск с графическим интерфейсом в windows из виртуальной среды
+В архиве лежит все необходимое для быстрого запуска в windows:
+Скачайте python 3.12 32bit https://www.python.org/downloads/windows/ 
+Или возьмие его из папки программы python-3.12.10.exe
+Запустите файл install.bat - он устанавливает виртуальную среду 
+файл run.bat - запускает виртуальную среду и программу 
+Если нужно то настройте удаленное подключение для Mysql базы
 
 ### запуск через консоль с готовым конфигом
 активируйте виртуальную среду, затем:
 `python "Путь_К_Папке\main.py" "Путь_К_Конфигурации"`
 
-### Установка виртуальной среды и библиотек (если архив не подходит)
-Нет сложных зависимостей, разработка велась в windows на Python 3.12 32bit.
-Скачайте и установите Python https://www.python.org/downloads/windows/
+### Установка вручную (windows)
+Скачайте python 3.12 32bit https://www.python.org/downloads/windows/ 
 С помощью pip скачайте и установите библиотеки из requirements.txt
+`-m pip install requirements.txt`
+
+### Установка (linux)
+Проверка текущего Python
+ `python3 --version`
+
+ Установка Python (Ubuntu/Debian)
+`sudo apt update
+sudo apt install python3 python3-pip python3-venv`
+
+ Установка 32-bit версии (если нужна)
+`sudo dpkg --add-architecture i386
+sudo apt update
+sudo apt install python3:i386 libpython3.8:i386`
+
+Создать venv
+`python3 -m venv .venv`
+
+Или с указанием Python
+`python3.8 -m venv .venv`
+
+Активация
+`source .venv/bin/activate`
+
+Проверка активации
+`which python  # должен показать путь в .venv`
+
+Деактивация
+`deactivate`
+
+### Установка зависимостей (win|linux)  
+Обновить pip
+`python -m pip install --upgrade pip`
+
+Установить из requirements.txt
+`pip install -r requirements.txt`
+
+Установить с указанием версии
+`pip install package==1.0.0`
 
 # Настройка хостинга к удаленному подключению
 * Включите удалённый доступ к БД (если поддерживается)

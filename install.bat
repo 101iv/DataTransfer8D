@@ -28,13 +28,24 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: Проверяем минимальную версию - БЕЗ ВРЕМЕННОГО ФАЙЛА
+:: Проверяем минимальную версию
 for /f "tokens=1-2 delims=. " %%a in ('python -c "import sys; print(sys.version_info.major, sys.version_info.minor)"') do (
     set "MAJOR=%%a"
     set "MINOR=%%b"
 )
 
-for /f %%i in ('python -c "import sys; print('32bit' if sys.maxsize ^<^= 2**32 else '64bit')"') do set "PYTHON_ARCH=%%i"
+:: Упрощаем проверку архитектуры
+python -c "import sys; print('32' if sys.maxsize <= 2**32 else '64')" > arch.tmp 2>nul
+set /p ARCH_TMP=<arch.tmp 2>nul
+del arch.tmp 2>nul
+
+if "!ARCH_TMP!"=="32" (
+    set "PYTHON_ARCH=32bit"
+) else if "!ARCH_TMP!"=="64" (
+    set "PYTHON_ARCH=64bit"
+) else (
+    set "PYTHON_ARCH=неизвестно"
+)
 
 echo Версия Python: !MAJOR!.!MINOR!
 echo Архитектура: !PYTHON_ARCH!
@@ -120,17 +131,47 @@ if not exist "%REQ_FILE%" (
 )
 
 echo Установка зависимостей из %REQ_FILE%...
-"%VENV_PIP%" install --upgrade pip
-"%VENV_PIP%" install -r "%REQ_FILE%"
+echo.
+
+:: 1. Обновляем pip
+echo Обновление pip...
+"%VENV_PYTHON%" -m pip install --upgrade pip --disable-pip-version-check --quiet
+if !errorlevel! neq 0 (
+    echo ⚠️  Не удалось обновить pip, продолжаем...
+)
+
+:: 2. Устанавливаем зависимости
+echo Установка пакетов...
+"%VENV_PYTHON%" -m pip install --disable-pip-version-check --no-warn-script-location -r "%REQ_FILE%"
 
 if %errorlevel% neq 0 (
     echo ⚠️  Ошибка установки зависимостей
-    echo Попытка установить основные пакеты...
-    "%VENV_PIP%" install setuptools wheel
+    echo Попытка установить по одной...
+
+    for /f "usebackq tokens=*" %%i in ("%REQ_FILE%") do (
+        set "line=%%i"
+        set "line=!line: =!"
+        if not "!line!"=="" (
+            echo !line! | findstr "^#" >nul
+            if !errorlevel! neq 0 (
+                echo !line! | findstr /r "^$" >nul
+                if !errorlevel! neq 0 (
+                    echo Установка: !line!
+                    "%VENV_PYTHON%" -m pip install --disable-pip-version-check !line!
+                )
+            )
+        )
+    )
 )
 
 echo ✅ Зависимости установлены
 echo.
+
+
+
+goto final
+
+
 
 :final
 echo ========================================
@@ -142,10 +183,8 @@ echo 1. ✓ Проверен Python ^>=%MIN_VERSION% 32-bit
 echo 2. ✓ Создано виртуальное окружение в %VENV_DIR%
 echo 3. ✓ Установлены зависимости из %REQ_FILE%
 echo.
-echo Использование:
-echo 1. Активировать окружение: %VENV_DIR%\Scripts\activate
-echo 2. Деактивировать: deactivate
-echo.
+echo Использование: run.bat
+echo
 echo ========================================
 pause
 exit /b 0

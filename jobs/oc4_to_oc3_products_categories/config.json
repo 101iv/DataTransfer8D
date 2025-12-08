@@ -2,20 +2,20 @@
   "source": {
     "type": "mysql",
     "connection_params": {
-      "host": "31.31.196.245",
+      "host": "31.31.xxx.xx",
       "port": 3306,
       "user": "u0927314_test_oc4",
-      "password": "qG6vH0nD5evQ0pU9",
+      "password": "xx",
       "database": "u0927314_test_oc4"
     }
   },
   "destination": {
     "type": "mysql",
     "connection_params": {
-      "host": "31.31.196.245",
+      "host": "31.31.xxx.xx",
       "port": 3306,
       "user": "u0927314_test_oc3",
-      "password": "qG6vH0nD5evQ0pU9",
+      "password": "xx",
       "database": "u0927314_test_oc3"
     }
   },
